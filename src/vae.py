@@ -70,7 +70,7 @@ class VAE(nn.Module):
     def encode(self, x):
         # 1. Convolutions
         for conv in self.enc_convs:
-            x = F.relu(conv(x))
+            x = F.gelu(conv(x))
 
         # 2. Global Mean Pooling (No Flattening)
         # Shape: (Batch, Channels, H, W) -> (Batch, Channels)
@@ -78,7 +78,7 @@ class VAE(nn.Module):
 
         # 3. Linear Layers
         for linear in self.enc_linears:
-            x = F.relu(linear(x))
+            x = F.gelu(linear(x))
 
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
@@ -93,7 +93,7 @@ class VAE(nn.Module):
         # 1. Linear Layers
         x = z
         for linear in self.dec_linears:
-            x = F.relu(linear(x))
+            x = F.gelu(linear(x))
 
         # 2. Reshape for Convs (Inverse of Global Mean)
         # We project to (Batch, C) then view as (Batch, C, 1, 1)
@@ -103,7 +103,7 @@ class VAE(nn.Module):
         for i, deconv in enumerate(self.dec_convs):
             x = deconv(x)
             if i != len(self.dec_convs) - 1:
-                x = F.relu(x)
+                x = F.gelu(x)
             else:
                 x = pt.sigmoid(x) # Final activation
         return x
