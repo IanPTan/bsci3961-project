@@ -13,7 +13,7 @@ print(f"Using image path: {IMAGE_PATH}")
 IMG = transforms.ToTensor()(transforms.Resize(128)(Image.open(IMAGE_PATH)))
                             
 # Hyperparameters
-num_epochs = 20
+num_epochs = 200
 learning_rate = 1e-4
 batch_size = 16
 conv_channels = [32, 64, 128, 256, 512, 1024]
@@ -115,7 +115,7 @@ ax2.set_ylabel('Learning Rate')
 plt.tight_layout()
 plt.show()
 
-for i in range(images):
+for i in range(len(images)):
     # Create a figure with 1 row and 2 columns
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
