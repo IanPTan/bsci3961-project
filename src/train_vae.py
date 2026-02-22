@@ -8,9 +8,9 @@ from tqdm.auto import tqdm
 from vae import VAE
 from dataset import PatchDataset
 
-image_path = 'frieren128.png'
-print(f"Using image path: {image_path}")
-IMG = transforms.ToTensor()(transforms.Resize(128)(Image.open(image_path)))
+IMAGE_PATH = 'frieren128.png'
+print(f"Using image path: {IMAGE_PATH}")
+IMG = transforms.ToTensor()(transforms.Resize(128)(Image.open(IMAGE_PATH)))
                             
 # Hyperparameters
 num_epochs = 20
