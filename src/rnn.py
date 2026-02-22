@@ -9,7 +9,7 @@ def kwta(h, k):
     return h * mask
 
 
-class RePool(nn.Module):
+class RNN(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, output_dim, hidden_loops=0, k=None,
     ):
@@ -57,7 +57,7 @@ class RePool(nn.Module):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    m = RePool(4, 64, 2, k=8)
+    m = RNN(4, 64, 2, k=8)
     x = torch.randn(32, 16, 4)
     y, hs = m(x)
     plt.imshow(hs[0].detach(), vmin=0)
