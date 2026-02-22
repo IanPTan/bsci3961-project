@@ -25,7 +25,6 @@ class RNN(nn.Module):
         self.hid_lin = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.out_lin = nn.Linear(hidden_dim, output_dim, bias=True)
 
-        self.layernorm = nn.LayerNorm(hidden_dim)
         if k:
             self.act = lambda x: kwta(nn.functional.relu(x), k)
         else:
@@ -41,10 +40,10 @@ class RNN(nn.Module):
         for t in range(T):
             x_t = x[:, t, :]
 
-            h = self.act(self.in_lin(x_t) + self.hid_lin(self.layernorm(h)))
+            h = self.act(self.in_lin(x_t) + self.hid_lin(h))
 
             for i in range(self.hidden_loops):
-                h += self.act(self.hid_lin(self.layernorm(h)))
+                h = self.act(self.hid_lin(self.layernorm(h)))
 
             hs.append(h)
 
