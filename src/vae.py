@@ -129,10 +129,8 @@ class VAE(nn.Module):
 # convs = [32, 64, 128, 256] -> 4 layers
 # feats = [128, 64] -> Latent dim is 64
 
-
-model = VAE(conv_channels=[32, 64, 128, 256], linear_features=[128, 64])
-
 if __name__ == "__main__":
+    model = VAE(conv_channels=[32, 64, 128, 256], linear_features=[128, 64])
     # test code here
     # Dummy input
     x = pt.randn(2, 3, 64, 64)
