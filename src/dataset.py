@@ -81,8 +81,9 @@ class PatchDataset(Dataset):
     def __getitem__(self, idx):
         y = idx // self.n_w
         x = idx % self.n_w
-        patch = self.patcher(pt.tensor([[y, x]]))[0]
-        return patch, pt.tensor([x, y], dtype=pt.float32)
+        coords = pt.tensor([y, x], dtype=pt.float32)
+        patch = self.patcher(coords[None, :].int())[0]
+        return patch, coords
 
 
 if __name__ == "__main__":
