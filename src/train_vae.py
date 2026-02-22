@@ -8,11 +8,8 @@ from tqdm.auto import tqdm
 from vae import VAE
 from dataset import PatchDataset
 
-
 image_path = 'frieren.png'
 print(f"Using image path: {image_path}")
-
-
 IMG = transforms.ToTensor()(transforms.Resize(512)(Image.open(image_path)))
                             
 # Hyperparameters
