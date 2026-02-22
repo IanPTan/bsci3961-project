@@ -82,7 +82,7 @@ class PatchDataset(Dataset):
         y = idx // self.n_w
         x = idx % self.n_w
         patch = self.patcher(pt.tensor([[y, x]]))[0]
-        return patch
+        return patch, pt.tensor([x, y], dtype=pt.float32)
 
 
 if __name__ == "__main__":

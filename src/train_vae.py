@@ -50,7 +50,7 @@ for epoch in range(num_epochs):
 
     # using train_loader now
     train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Train]")
-    for batch_idx, images in enumerate(train_pbar):
+    for batch_idx, (images, _) in enumerate(train_pbar):
         images = images.to(device)
 
         # Forward pass
@@ -73,7 +73,7 @@ for epoch in range(num_epochs):
     total_val_loss = 0
 
     with pt.no_grad():
-        for images in tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Val]"):
+        for images, _ in tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Val]"):
             images = images.to(device)
 
             recon_images, mu, logvar = vae_model(images)
