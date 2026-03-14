@@ -1,9 +1,9 @@
 import torch as pt
+from torch.utils.data import DataLoader, random_split
 import torchvision.transforms as transforms
 from PIL import Image
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
-import h5py as hp
 
 from dataset import PatchDataset
 from vae import VAE
@@ -25,21 +25,10 @@ vae_model.load_state_dict(pt.load("vae.pt", map_location=device))
 vae_model.eval()
 print("Loaded model.")
 
-num_patches = len(dataset)
-enc_dim = linear_features[-1]
 
-with hp.File("vae_patches.h5", "w") as ds_file:
-    ds_file.create_dataset("patches", shape=(num_patches, enc_dim), dtype="f4")
-    ds_file.create_dataset("coords", shape=(num_patches, 2), dtype="i8")
-
-    ds_patches = ds_file["patches"]
-    ds_coords = ds_file["coords"]
-
-    for i, (img, coords) in tqdm(enumerate(dataset), desc="Encoding...", unit="sample", total=num_patches):
-        x = img[None, ...]
-        v, _ = vae_model.encode(x)
-
-        ds_patches[i] = v[0].detach()
-        ds_coords[i] = coords
-
-print("Done.")
+for (img, _) in dataset:
+    x = img[None, ...]
+    y, _, _ = vae_model(x)
+    plt.imshow(y[0].detach().permute(1, 2, 0))
+    plt.show()
+    

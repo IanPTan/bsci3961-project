@@ -1,5 +1,6 @@
 import torch as pt
 from torch.utils.data import Dataset
+import h5py as hp
 
 class Patcher:
     def __init__(self, image, patch_size, patch_stride):
@@ -84,6 +85,24 @@ class PatchDataset(Dataset):
         coords = pt.tensor([y, x], dtype=pt.float32)
         patch = self.patcher(coords[None, :].int())[0]
         return patch, coords
+
+
+class VAEPatchDataset(Dataset):
+    def __init__(self, h5_path="vae_patches.h5"):
+        self.ds_file = hp.File(h5_path, "r")
+        self.ds_patches = self.ds_file["patches"]
+        self.ds_coords = self.ds_file["coords"]
+
+    def __len__(self):
+        return len(self.ds_coords)
+
+    def __getitem__(self, idx):
+        patch = pt.tensor(self.ds_patches[idx], dtype=pt.float32)
+        coords = pt.tensor(self.ds_coords[idx], dtype=pt.float32)
+        return patch, coords
+
+    def __del__(self):
+        self.ds_file.close()
 
 
 if __name__ == "__main__":
