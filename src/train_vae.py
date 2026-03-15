@@ -13,19 +13,19 @@ print(f"Using image path: {IMAGE_PATH}")
 IMG = transforms.ToTensor()(transforms.Resize(128)(Image.open(IMAGE_PATH)))
                             
 # Hyperparameters
-num_epochs = 200
-learning_rate = 1e-4
-batch_size = 16
-conv_channels = [32, 64, 128, 256, 512, 1024]
-linear_features = [128, 64]
+NUM_EPOCHS = 200
+LEARNING_RATE = 1e-4
+BATCH_SIZE = 16
+CONV_CHANNELS = [32, 64, 128, 256, 512, 1024]
+LINEAR_FEATURES = [128, 64]
 
 # Device configuration
 device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Instantiate VAE model
-vae_model = VAE(conv_channels=conv_channels, linear_features=linear_features).to(device)
-optimizer = pt.optim.AdamW(vae_model.parameters(), lr=learning_rate)
+vae_model = VAE(CONV_CHANNELS=CONV_CHANNELS, LINEAR_FEATURES=LINEAR_FEATURES).to(device)
+optimizer = pt.optim.AdamW(vae_model.parameters(), lr=LEARNING_RATE)
 scheduler = pt.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
 dataset = PatchDataset(IMG, 64, 1)
@@ -36,20 +36,20 @@ train_size = int((1 - val_ratio) * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
+train_loader = DataLoader(dataset=train_dataset, BATCH_SIZE=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(dataset=val_dataset, BATCH_SIZE=BATCH_SIZE, shuffle=False)
 
 train_losses = []
 val_losses = []
 lrs = []
 
-for epoch in range(num_epochs):
+for epoch in range(NUM_EPOCHS):
     # --- Training Phase ---
     vae_model.train()
     total_train_loss = 0
 
     # using train_loader now
-    train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Train]")
+    train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Train]")
     for batch_idx, (images, _) in enumerate(train_pbar):
         images = images.to(device)
 
@@ -73,7 +73,7 @@ for epoch in range(num_epochs):
     total_val_loss = 0
 
     with pt.no_grad():
-        for images, _ in tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Val]"):
+        for images, _ in tqdm(val_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS} [Val]"):
             images = images.to(device)
 
             recon_images, mu, logvar = vae_model(images)
@@ -89,7 +89,7 @@ for epoch in range(num_epochs):
     lrs.append(lr)
     scheduler.step(avg_val_loss)
 
-    print(f'Epoch [{epoch+1}/{num_epochs}] | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | LR: {lr}')
+    print(f'Epoch [{epoch+1}/{NUM_EPOCHS}] | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | LR: {lr}')
 
 print("VAE training complete.")
 pt.save(vae_model.state_dict(), "backup.pt")

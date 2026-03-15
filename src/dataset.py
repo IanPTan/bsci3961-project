@@ -20,17 +20,17 @@ class Patcher:
 dumb_rng = lambda i, c, seed, x_min, x_max: (i ** c + seed) % (x_max - x_min) + x_min
 
 
-def get_raw_path(i, num_points=128, c=51, seed=6, x_min=-5, x_max=5):
+def get_raw_path(i, num_moves=128, c=51, seed=6, x_min=-5, x_max=5):
     # c and seed are genuinely divine numbers, beware when adjusting
-    i = pt.arange(num_points * 2).view(-1, 2) + num_points * 2 * i
+    i = pt.arange(num_moves * 2).view(-1, 2) + num_moves * 2 * i
 
     dx = dumb_rng(i, c, seed, x_min, x_max)
     return pt.cat((pt.tensor([[0, 0]]), dx.cumsum(dim=0)))
 
 
-def get_path(i, img_size, min_size, num_points=128, c=51, seed=6, x_min=-5, x_max=5):
+def get_path(i, img_size, min_size, num_moves=128, c=51, seed=6, x_min=-5, x_max=5):
     img_size = pt.tensor(img_size)
-    raw_path = get_raw_path(i, num_points, c, seed, x_min, x_max)
+    raw_path = get_raw_path(i, num_moves, c, seed, x_min, x_max)
 
     raw_min = raw_path.min(dim=0).values
     raw_max = raw_path.max(dim=0).values
@@ -43,25 +43,23 @@ def get_path(i, img_size, min_size, num_points=128, c=51, seed=6, x_min=-5, x_ma
     path_min = dumb_rng(min_i, c, seed, 0, min_max)
     path_max = dumb_rng(max_i, c, seed, max_min, img_size)
     path_range = path_max - path_min
-    print(img_size)
-    print(path_max)
 
     path = (raw_path - raw_min) / raw_range * path_range + path_min
     return path.int()
 
 
 class PathDataset(Dataset):
-    def __init__(self, image, num_samples, num_points, patch_size=64, patch_stride=1, move_max=5):
+    def __init__(self, image, num_samples, num_moves, patch_size=64, patch_stride=1, move_max=5):
         self.patcher = Patcher(image, patch_size, patch_stride)
         self.num_samples = num_samples
-        self.num_points = num_points
+        self.num_moves = num_moves
         self.move_max = move_max
 
     def __len__(self):
         return self.num_samples
 
     def __getitem__(self, idx):
-        coords = get_path(idx, self.patcher.shape, self.num_points, x_min=-self.move_max, x_max=self.move_max)
+        coords = get_path(idx, self.patcher.shape, self.num_moves, x_min=-self.move_max, x_max=self.move_max)
         moves = coords.diff(dim=0)
 
         patches = self.patcher(coords)
