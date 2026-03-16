@@ -63,7 +63,7 @@ class PathDataset(Dataset):
         moves = coords.diff(dim=0)
 
         patches = self.patcher(coords)
-        in_patcmes = patches[:-1]
+        in_patches = patches[:-1]
         out_patches = patches[1:]
 
         return moves, in_patches, out_patches

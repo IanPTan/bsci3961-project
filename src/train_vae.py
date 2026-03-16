@@ -36,8 +36,8 @@ train_size = int((1 - val_ratio) * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-train_loader = DataLoader(dataset=train_dataset, BATCH_SIZE=BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(dataset=val_dataset, BATCH_SIZE=BATCH_SIZE, shuffle=False)
+train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 train_losses = []
 val_losses = []

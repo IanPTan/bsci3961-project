@@ -1,0 +1,136 @@
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, random_split
+
+from rnn import RNN
+from dataset import VAEPathDataset
+
+
+# Hyperparameters
+NUM_EPOCHS = 100
+LEARNING_RATE = 1e-3
+BATCH_SIZE = 32
+
+HIDDEN_DIM = 128
+HIDDEN_LOOPS = 0
+K = 8
+
+VAL_SPLIT = 0.2
+MODEL_SAVE_PATH = "best_rnn.pt"
+
+# Device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+
+def train_one_epoch(model, loader, optimizer, criterion, device):
+    model.train()
+    total_loss = 0.0
+
+    for moves, in_patches, out_patches in loader:
+        moves = moves.to(device)
+        in_patches = in_patches.to(device)
+        out_patches = out_patches.to(device)
+
+        # CONCATENATE PATCH FEATURES + MOVE FEATURES
+        x = torch.cat([in_patches, moves], dim=-1)
+
+        optimizer.zero_grad()
+
+        y_pred, h_seq = model(x)
+        loss = criterion(y_pred, out_patches)
+
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
+    return total_loss / len(loader)
+
+
+@torch.no_grad()
+def evaluate(model, loader, criterion, device):
+    model.eval()
+    total_loss = 0.0
+
+    for moves, in_patches, out_patches in loader:
+        moves = moves.to(device)
+        in_patches = in_patches.to(device)
+        out_patches = out_patches.to(device)
+
+        x = torch.cat([in_patches, moves], dim=-1)
+
+        y_pred, h_seq = model(x)
+        loss = criterion(y_pred, out_patches)
+
+        total_loss += loss.item()
+
+    return total_loss / len(loader)
+
+
+def main():
+    # LOAD DATASET
+    dataset = VAEPathDataset("src/vae_paths.h5")
+
+    # INFER DIMENSIONS FROM ONE SAMPLE
+    sample_moves, sample_in_patches, sample_out_patches = dataset[0]
+
+    seq_len = sample_in_patches.shape[0]
+    patch_dim = sample_in_patches.shape[-1]
+    move_dim = sample_moves.shape[-1]
+    input_dim = patch_dim + move_dim
+    output_dim = sample_out_patches.shape[-1]
+
+    print(f"Sequence length: {seq_len}")
+    print(f"Patch dim:       {patch_dim}")
+    print(f"Move dim:        {move_dim}")
+    print(f"Input dim:       {input_dim}")
+    print(f"Output dim:      {output_dim}")
+
+    # SPLIT DATASET
+    val_size = int(len(dataset) * VAL_SPLIT)
+    train_size = len(dataset) - val_size
+
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Val samples:   {len(val_dataset)}")
+
+    # MODEL
+    model = RNN(
+        input_dim=input_dim,
+        hidden_dim=HIDDEN_DIM,
+        output_dim=output_dim,
+        hidden_loops=HIDDEN_LOOPS,
+        k=K,
+    ).to(device)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+    criterion = nn.MSELoss()
+
+    best_val_loss = float("inf")
+
+    for epoch in range(NUM_EPOCHS):
+        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
+        val_loss = evaluate(model, val_loader, criterion, device)
+
+        print(
+            f"Epoch [{epoch+1}/{NUM_EPOCHS}] | "
+            f"Train Loss: {train_loss:.6f} | "
+            f"Val Loss: {val_loss:.6f}"
+        )
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), MODEL_SAVE_PATH)
+            print(f"Saved best model to {MODEL_SAVE_PATH}")
+
+    print("Training complete.")
+    print(f"Best validation loss: {best_val_loss:.6f}")
+
+
+if __name__ == "__main__":
+    main()
