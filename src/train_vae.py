@@ -24,7 +24,7 @@ device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Instantiate VAE model
-vae_model = VAE(CONV_CHANNELS=CONV_CHANNELS, LINEAR_FEATURES=LINEAR_FEATURES).to(device)
+vae_model = VAE(conv_channels=CONV_CHANNELS, linear_features=LINEAR_FEATURES).to(device)
 optimizer = pt.optim.AdamW(vae_model.parameters(), lr=LEARNING_RATE)
 scheduler = pt.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
