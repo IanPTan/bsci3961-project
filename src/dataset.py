@@ -103,6 +103,28 @@ class VAEPatchDataset(Dataset):
         self.ds_file.close()
 
 
+class VAEPathDataset(Dataset):
+    def __init__(self, h5_path="paths.h5"):
+        self.ds_file = hp.File(h5_path, "r")
+        self.ds_patches = self.ds_file["patches"]
+        self.ds_moves = self.ds_file["moves"]
+
+    def __len__(self):
+        return len(self.ds_moves)   # or len(self.ds_patches), should match
+
+    def __getitem__(self, idx):
+        patches = pt.tensor(self.ds_patches[idx], dtype=pt.float32)
+        moves = pt.tensor(self.ds_moves[idx], dtype=pt.float32)
+
+        in_patches = patches[:-1]
+        out_patches = patches[1:]
+
+        return moves, in_patches, out_patches
+
+    def __del__(self):
+        self.ds_file.close()
+
+
 if __name__ == "__main__":
     from PIL import Image
     import matplotlib.pyplot as plt
