@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
+from tqdm import tqdm
 
 from rnn import RNN
 from dataset import VAEPathDataset
@@ -13,7 +14,7 @@ BATCH_SIZE = 32
 
 HIDDEN_DIM = 128
 HIDDEN_LOOPS = 0
-K = 8
+K = 0
 
 VAL_SPLIT = 0.2
 MODEL_SAVE_PATH = "best_rnn.pt"
@@ -27,7 +28,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     model.train()
     total_loss = 0.0
 
-    for moves, in_patches, out_patches in loader:
+    for moves, in_patches, out_patches in tqdm(loader, desc="Training...", unit="batch"):
         moves = moves.to(device)
         in_patches = in_patches.to(device)
         out_patches = out_patches.to(device)
@@ -53,7 +54,7 @@ def evaluate(model, loader, criterion, device):
     model.eval()
     total_loss = 0.0
 
-    for moves, in_patches, out_patches in loader:
+    for moves, in_patches, out_patches in tqdm(loader, desc="Evaluating...", unit="batch"):
         moves = moves.to(device)
         in_patches = in_patches.to(device)
         out_patches = out_patches.to(device)
@@ -70,7 +71,7 @@ def evaluate(model, loader, criterion, device):
 
 def main():
     # LOAD DATASET
-    dataset = VAEPathDataset("src/vae_paths.h5")
+    dataset = VAEPathDataset("vae_paths.h5")
 
     # INFER DIMENSIONS FROM ONE SAMPLE
     sample_moves, sample_in_patches, sample_out_patches = dataset[0]
