@@ -63,7 +63,7 @@ class PathDataset(Dataset):
         moves = coords.diff(dim=0)
 
         patches = self.patcher(coords)
-        in_patches = patches[:-1]
+        in_patcmes = patches[:-1]
         out_patches = patches[1:]
 
         return moves, in_patches, out_patches
@@ -104,7 +104,7 @@ class VAEPatchDataset(Dataset):
 
 
 class VAEPathDataset(Dataset):
-    def __init__(self, h5_path="paths.h5"):
+    def __init__(self, h5_path="vae_paths.h5"):
         self.ds_file = hp.File(h5_path, "r")
         self.ds_patches = self.ds_file["patches"]
         self.ds_moves = self.ds_file["moves"]
