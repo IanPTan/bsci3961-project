@@ -26,7 +26,7 @@ device = pt.device("cuda" if pt.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 print(f"Using image path: {IMAGE_PATH}")
-IMG = transforms.ToTensor()(transforms.Resize(256)(Image.open(IMAGE_PATH).convert("RGB")))
+IMG = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH).convert("RGB")))
 
 print("Loading model...")
 vae_model = VAE(conv_channels=CONV_CHANNELS, linear_features=LINEAR_FEATURES).to(device)
