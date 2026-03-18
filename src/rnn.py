@@ -43,7 +43,7 @@ class RNN(nn.Module):
             h = self.act(self.in_lin(x_t) + self.hid_lin(h))
 
             for i in range(self.hidden_loops):
-                h = self.act(self.hid_lin(self.layernorm(h)))
+                h = self.act(self.hid_lin(h))
 
             hs.append(h)
 

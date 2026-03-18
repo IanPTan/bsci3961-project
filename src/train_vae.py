@@ -8,16 +8,18 @@ from tqdm.auto import tqdm
 from vae import VAE
 from dataset import PatchDataset
 
-IMAGE_PATH = 'frieren128.png'
+IMAGE_PATH = 'frieren.png'
 print(f"Using image path: {IMAGE_PATH}")
-IMG = transforms.ToTensor()(transforms.Resize(128)(Image.open(IMAGE_PATH)))
+IMG = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH)))
                             
 # Hyperparameters
-NUM_EPOCHS = 200
+NUM_EPOCHS = 100
 LEARNING_RATE = 1e-4
 BATCH_SIZE = 16
 CONV_CHANNELS = [32, 64, 128, 256, 512, 1024]
 LINEAR_FEATURES = [128, 64]
+best_val = 8000
+BETTER_BY = 1
 
 # Device configuration
 device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
@@ -89,6 +91,10 @@ for epoch in range(NUM_EPOCHS):
     lrs.append(lr)
     scheduler.step(avg_val_loss)
 
+    if best_val - avg_val_loss > BETTER_BY:
+        best_val = avg_val_loss
+        pt.save(vae_model.state_dict(), "backup.pt")
+
     print(f'Epoch [{epoch+1}/{NUM_EPOCHS}] | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | LR: {lr}')
 
 print("VAE training complete.")
@@ -113,7 +119,7 @@ ax2.set_ylabel('Learning Rate')
 
 # Adjust layout to prevent titles from overlapping
 plt.tight_layout()
-plt.show()
+plt.savefig("figs/vae_loss.png")
 
 for i in range(len(images)):
     # Create a figure with 1 row and 2 columns
@@ -129,4 +135,4 @@ for i in range(len(images)):
     axes[1].set_title("Reconstruction")
     axes[1].axis('off')
 
-    plt.show()
+    plt.savefig(f"figs/vae_comp_{i}.png")
