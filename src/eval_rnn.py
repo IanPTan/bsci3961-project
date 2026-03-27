@@ -137,26 +137,48 @@ def main():
     # -------------------------
 
     # T is number of timesteps to visualize
-    T = min(8, true_imgs.shape[0])
+    T = min(10, true_imgs.shape[0])
     start = 0 # adjust to the first timestep you want to visualize.
 
-    fig, axes = plt.subplots(T, 2, figsize=(6, 2.5 * T))
+    pairs_per_row = 5                 # how many time steps per row
+    n_rows = (T + pairs_per_row - 1) // pairs_per_row
+    n_cols = pairs_per_row * 2        # true + pred for each time step
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(3 * n_cols, 3 * n_rows))
 
-    if T == 1:
+    if n_rows == 1:
         axes = axes[None, :]
 
     for i in range(T):
         t = start + i
+        row = t // pairs_per_row
+        pair = t % pairs_per_row
+        col_true = pair * 2
+        col_pred = pair * 2 + 1
+
+
         true_patch = patch_to_imshow_format(true_imgs[t])
         pred_patch = patch_to_imshow_format(pred_imgs[t])
 
-        axes[i, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
-        axes[i, 0].set_title(f"True t={t}")
-        axes[i , 0].axis("off")
+        axes[row, col_true].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
+        axes[row, col_true].set_title(f"True t={t}")
+        axes[row, col_true].axis("off")
+        
+        axes[row, col_pred].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
+        axes[row, col_pred].set_title(f"Pred t={t}")
+        axes[row, col_pred].axis("off")
 
-        axes[i, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
-        axes[i, 1].set_title(f"Pred t={t}")
-        axes[i, 1].axis("off")
+        # axes[i, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
+        # axes[i, 0].set_title(f"True t={t}")
+        # axes[i , 0].axis("off")
+
+        # axes[i, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
+        # axes[i, 1].set_title(f"Pred t={t}")
+        # axes[i, 1].axis("off")
+    for i in range(T, n_rows * pairs_per_row):
+        row = i // pairs_per_row
+        pair = i % pairs_per_row
+        axes[row, pair * 2].axis("off")
+        axes[row, pair * 2 + 1].axis("off")
 
     plt.tight_layout()
     plt.show()
