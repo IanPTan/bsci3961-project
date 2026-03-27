@@ -19,7 +19,8 @@ HIDDEN_LOOPS = 0
 K = 8
 
 # example index of sequence to visualize
-SEQ_IDX = 0
+# MODIFY as needed.
+SEQ_IDX = 90
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -134,24 +135,28 @@ def main():
     # -------------------------
     # Plot side by side
     # -------------------------
+
+    # T is number of timesteps to visualize
     T = min(8, true_imgs.shape[0])
+    start = 0 # adjust to the first timestep you want to visualize.
 
     fig, axes = plt.subplots(T, 2, figsize=(6, 2.5 * T))
 
     if T == 1:
         axes = axes[None, :]
 
-    for t in range(T):
+    for i in range(T):
+        t = start + i
         true_patch = patch_to_imshow_format(true_imgs[t])
         pred_patch = patch_to_imshow_format(pred_imgs[t])
 
-        axes[t, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
-        axes[t, 0].set_title(f"True t={t}")
-        axes[t, 0].axis("off")
+        axes[i, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
+        axes[i, 0].set_title(f"True t={t}")
+        axes[i , 0].axis("off")
 
-        axes[t, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
-        axes[t, 1].set_title(f"Pred t={t}")
-        axes[t, 1].axis("off")
+        axes[i, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
+        axes[i, 1].set_title(f"Pred t={t}")
+        axes[i, 1].axis("off")
 
     plt.tight_layout()
     plt.show()
