@@ -15,8 +15,8 @@ VAE_WEIGHTS = "vae.pt"
 
 # must match train_rnn.py
 HIDDEN_DIM = 128
-HIDDEN_LOOPS = 0
-K = 8
+HIDDEN_LOOPS = 3
+K = 0
 
 # example index of sequence to visualize
 # MODIFY as needed.
@@ -63,74 +63,73 @@ def patch_to_imshow_format(patch):
     return patch
 
 
-def main():
-    # -------------------------
-    # Load dataset
-    # -------------------------
-    dataset = VAEPathDataset(PATHS_H5)
+# -------------------------
+# Load dataset
+# -------------------------
+dataset = VAEPathDataset(PATHS_H5)
 
-    moves, in_patches, out_patches = dataset[SEQ_IDX]
+moves, in_patches, out_patches = dataset[SEQ_IDX]
 
-    print("Single sample shapes:")
-    print("moves:", moves.shape)
-    print("in_patches:", in_patches.shape)
-    print("out_patches:", out_patches.shape)
+print("Single sample shapes:")
+print("moves:", moves.shape)
+print("in_patches:", in_patches.shape)
+print("out_patches:", out_patches.shape)
 
-    patch_dim = in_patches.shape[-1]
-    move_dim = moves.shape[-1]
-    input_dim = patch_dim + move_dim
-    output_dim = out_patches.shape[-1]
+patch_dim = in_patches.shape[-1]
+move_dim = moves.shape[-1]
+input_dim = patch_dim + move_dim
+output_dim = out_patches.shape[-1]
 
-    # add batch dimension
-    moves = moves.unsqueeze(0).to(device)             # (1, T, move_dim)
-    in_patches = in_patches.unsqueeze(0).to(device)   # (1, T, patch_dim)
-    out_patches = out_patches.unsqueeze(0).to(device) # (1, T, patch_dim)
+# add batch dimension
+moves = moves.unsqueeze(0).to(device)             # (1, T, move_dim)
+in_patches = in_patches.unsqueeze(0).to(device)   # (1, T, patch_dim)
+out_patches = out_patches.unsqueeze(0).to(device) # (1, T, patch_dim)
 
-    x = torch.cat([in_patches, moves], dim=-1)        # (1, T, patch_dim + move_dim)
+x = torch.cat([in_patches, moves], dim=-1)        # (1, T, patch_dim + move_dim)
 
-    # -------------------------
-    # Load RNN
-    # -------------------------
-    rnn = RNN(
-        input_dim=input_dim,
-        hidden_dim=HIDDEN_DIM,
-        output_dim=output_dim,
-        hidden_loops=HIDDEN_LOOPS,
-        k=K,
-    ).to(device)
+# -------------------------
+# Load RNN
+# -------------------------
+rnn = RNN(
+    input_dim=input_dim,
+    hidden_dim=HIDDEN_DIM,
+    output_dim=output_dim,
+    hidden_loops=HIDDEN_LOOPS,
+    k=K,
+).to(device)
 
-    rnn.load_state_dict(torch.load(RNN_WEIGHTS, map_location=device))
-    rnn.eval()
+rnn.load_state_dict(torch.load(RNN_WEIGHTS, map_location=device))
+rnn.eval()
 
-    # -------------------------
-    # Load VAE
-    # -------------------------
-    # change constructor args to match your trained VAE
-    vae = VAE(
-        conv_channels=[32, 64, 128, 256, 512, 1024],
-        linear_features=[128, 64],
-    ).to(device)
+# -------------------------
+# Load VAE
+# -------------------------
+# change constructor args to match your trained VAE
+vae = VAE(
+    conv_channels=[32, 64, 128, 256, 512, 1024],
+    linear_features=[128, 64],
+).to(device)
 
-    vae.load_state_dict(torch.load(VAE_WEIGHTS, map_location=device))
-    vae.eval()
+vae.load_state_dict(torch.load(VAE_WEIGHTS, map_location=device))
+vae.eval()
 
-    # -------------------------
-    # Run RNN
-    # -------------------------
-    with torch.no_grad():
-        pred_out_patches, _ = rnn(x)
+# -------------------------
+# Run RNN
+# -------------------------
+with torch.no_grad():
+    pred_out_patches, _ = rnn(x)
 
-    print("pred_out_patches:", pred_out_patches.shape)
+print("pred_out_patches:", pred_out_patches.shape)
 
-    # -------------------------
-    # Decode true and predicted latents
-    # -------------------------
-    true_imgs = decode_latents(vae, out_patches)[0]       # remove batch dim -> (T, ...)
-    pred_imgs = decode_latents(vae, pred_out_patches)[0]  # remove batch dim -> (T, ...)
+# -------------------------
+# Decode true and predicted latents
+# -------------------------
+true_imgs = decode_latents(vae, out_patches)[0]       # remove batch dim -> (T, ...)
+pred_imgs = decode_latents(vae, pred_out_patches)[0]  # remove batch dim -> (T, ...)
 
-    print("Decoded shapes:")
-    print("true_imgs:", true_imgs.shape)
-    print("pred_imgs:", pred_imgs.shape)
+print("Decoded shapes:")
+print("true_imgs:", true_imgs.shape)
+print("pred_imgs:", pred_imgs.shape)
 
     # -------------------------
     # Plot side by side
@@ -180,9 +179,5 @@ def main():
         axes[row, pair * 2].axis("off")
         axes[row, pair * 2 + 1].axis("off")
 
-    plt.tight_layout()
-    plt.show()
-
-
-if __name__ == "__main__":
-    main()
+plt.tight_layout()
+plt.savefig(f"figs/path_{SEQ_IDX}.png")
