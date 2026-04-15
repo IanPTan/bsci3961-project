@@ -12,7 +12,7 @@ IMAGE_PATH = "frieren.png"
 OUTPUT_PATH = "vae_paths.h5"
 VAE_WEIGHTS_PATH = "vae.pt"
 
-NUM_SAMPLES = 10000
+SPLIT_SIZES = {"train": 8000, "test": 2000}
 NUM_MOVES = 128
 PATCH_SIZE = 64
 PATCH_STRIDE = 1
@@ -41,40 +41,55 @@ enc_dim = LINEAR_FEATURES[-1]
 seq_len_patches = NUM_MOVES + 1
 
 with hp.File(OUTPUT_PATH, "w") as ds_file:
-    ds_file.create_dataset(
-        "patches",
-        shape=(NUM_SAMPLES, seq_len_patches, enc_dim),
-        dtype="f4",
-    )
-    ds_file.create_dataset(
-        "moves",
-        shape=(NUM_SAMPLES, NUM_MOVES, 2),
-        dtype="i4",
-    )
 
-    ds_patches = ds_file["patches"]
-    ds_moves = ds_file["moves"]
+    start_i = 0
 
-    for i in tqdm(range(NUM_SAMPLES), desc="Encoding paths", unit="path"):
-        coords = get_path(
-            i,
-            patcher.shape,
-            NUM_MOVES,
-            x_min=-MOVE_MAX,
-            x_max=MOVE_MAX,
+    for group, num_samples in SPLIT_SIZES.items():
+        
+        ds_file.create_group(group)
+
+        ds_file[group].create_dataset(
+            "patches",
+            shape=(num_samples, seq_len_patches, enc_dim),
+            dtype="f4",
+        )
+        ds_file[group].create_dataset(
+            "moves",
+            shape=(num_samples, NUM_MOVES, 2),
+            dtype="i4",
+        )
+        ds_file[group].create_dataset(
+            "coords",
+            shape=(num_samples, seq_len_patches, 2),
+            dtype="i4",
         )
 
-        coords[:, 0] = coords[:, 0].clamp(0, n_h - 1)
-        coords[:, 1] = coords[:, 1].clamp(0, n_w - 1)
+        ds_patches = ds_file[group]["patches"]
+        ds_moves = ds_file[group]["moves"]
+        ds_coords = ds_file[group]["coords"]
 
-        moves = coords.diff(dim=0)
-        patches = patcher(coords)
+        for i in tqdm(range(num_samples), desc=f"Encoding paths {group}", unit="path"):
+            coords = get_path(
+                start_i + i,
+                patcher.shape,
+                NUM_MOVES,
+                x_min=-MOVE_MAX,
+                x_max=MOVE_MAX,
+            )
 
-        x = patches.to(device)
-        v, _ = vae_model.encode(x)
+            coords[:, 0] = coords[:, 0].clamp(0, n_h - 1)
+            coords[:, 1] = coords[:, 1].clamp(0, n_w - 1)
 
-        ds_patches[i] = v.detach().cpu()
-        ds_moves[i] = moves.cpu()
+            moves = coords.diff(dim=0)
+            patches = patcher(coords)
+
+            x = patches.to(device)
+            v, _ = vae_model.encode(x)
+
+            ds_patches[i] = v.detach().cpu()
+            ds_moves[i] = moves.cpu()
+            ds_coords[i] = coords.cpu()
+        start_i += num_samples
 
 print("Done.")
 
