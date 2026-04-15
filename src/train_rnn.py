@@ -29,7 +29,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     model.train()
     total_loss = 0.0
 
-    for moves, in_patches, out_patches in tqdm(loader, desc="Training...", unit="batch"):
+    for moves, in_patches, out_patches, _ in tqdm(loader, desc="Training...", unit="batch"):
         moves = moves.to(device)
         in_patches = in_patches.to(device)
         out_patches = out_patches.to(device)
@@ -55,7 +55,7 @@ def evaluate(model, loader, criterion, device):
     model.eval()
     total_loss = 0.0
 
-    for moves, in_patches, out_patches in tqdm(loader, desc="Evaluating...", unit="batch"):
+    for moves, in_patches, out_patches, _ in tqdm(loader, desc="Evaluating...", unit="batch"):
         moves = moves.to(device)
         in_patches = in_patches.to(device)
         out_patches = out_patches.to(device)
@@ -72,10 +72,11 @@ def evaluate(model, loader, criterion, device):
 
 if __name__ == "__main__":
     # LOAD DATASET
-    dataset = VAEPathDataset("vae_paths.h5")
+    train_dataset = VAEPathDataset("vae_paths.h5")
+    test_dataset = VAEPathDataset("vae_paths.h5", split="test")
 
     # INFER DIMENSIONS FROM ONE SAMPLE
-    sample_moves, sample_in_patches, sample_out_patches = dataset[0]
+    sample_moves, sample_in_patches, sample_out_patches = train_dataset[0]
 
     seq_len = sample_in_patches.shape[0]
     patch_dim = sample_in_patches.shape[-1]
@@ -89,17 +90,11 @@ if __name__ == "__main__":
     print(f"Input dim:       {input_dim}")
     print(f"Output dim:      {output_dim}")
 
-    # SPLIT DATASET
-    val_size = int(len(dataset) * VAL_SPLIT)
-    train_size = len(dataset) - val_size
-
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     print(f"Train samples: {len(train_dataset)}")
-    print(f"Val samples:   {len(val_dataset)}")
+    print(f"Val samples:   {len(test_dataset)}")
 
     # MODEL
     model = RNN(

@@ -104,10 +104,13 @@ class VAEPatchDataset(Dataset):
 
 
 class VAEPathDataset(Dataset):
-    def __init__(self, h5_path="vae_paths.h5"):
+    def __init__(self, h5_path="vae_paths.h5", split="train"):
         self.ds_file = hp.File(h5_path, "r")
-        self.ds_patches = self.ds_file["patches"]
-        self.ds_moves = self.ds_file["moves"]
+
+        self.group = self.ds_file[split]
+        self.ds_patches = self.group["patches"]
+        self.ds_moves = self.group["moves"]
+        self.ds_coords = self.group["coords"]        
 
     def __len__(self):
         return len(self.ds_moves)   # or len(self.ds_patches), should match
@@ -115,11 +118,12 @@ class VAEPathDataset(Dataset):
     def __getitem__(self, idx):
         patches = pt.tensor(self.ds_patches[idx], dtype=pt.float32)
         moves = pt.tensor(self.ds_moves[idx], dtype=pt.float32)
+        coords = pt.tensor(self.ds_coords[idx], dtype=pt.float32)
 
         in_patches = patches[:-1]
         out_patches = patches[1:]
 
-        return moves, in_patches, out_patches
+        return moves, in_patches, out_patches, coords
 
     def __del__(self):
         self.ds_file.close()
