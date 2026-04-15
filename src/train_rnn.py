@@ -9,10 +9,11 @@ from dataset import VAEPathDataset
 
 # Hyperparameters
 NUM_EPOCHS = 100
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-6
+WEIGHT_DECAY = 1e-1
 BATCH_SIZE = 32
 
-HIDDEN_DIM = 256
+HIDDEN_DIM = 2048
 HIDDEN_LOOPS = 3
 K = 0
 
@@ -69,7 +70,7 @@ def evaluate(model, loader, criterion, device):
     return total_loss / len(loader)
 
 
-def main():
+if __name__ == "__main__":
     # LOAD DATASET
     dataset = VAEPathDataset("vae_paths.h5")
 
@@ -109,7 +110,13 @@ def main():
         k=K,
     ).to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+    try:
+        model.load_state_dict(torch.load(MODEL_SAVE_PATH, map_location=device))
+        print("loading backup")
+    except Exception:
+        print("using fresh weights")
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     criterion = nn.MSELoss()
 
     best_val_loss = float("inf")
@@ -133,5 +140,3 @@ def main():
     print(f"Best validation loss: {best_val_loss:.6f}")
 
 
-if __name__ == "__main__":
-    main()

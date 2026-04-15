@@ -10,16 +10,16 @@ from dataset import VAEPathDataset
 # Config
 # -------------------------
 PATHS_H5 = "vae_paths.h5"
-RNN_WEIGHTS = "best_rnn.pt"
+RNN_WEIGHTS = "2048_9_rnn.pt"
 VAE_WEIGHTS = "vae.pt"
 
 # must match train_rnn.py
-HIDDEN_DIM = 128
-HIDDEN_LOOPS = 3
+HIDDEN_DIM = 2048
+HIDDEN_LOOPS = 9
 K = 0
 
 # example index of sequence to visualize
-SEQ_IDX = 1
+SEQ_IDX = 4
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -153,4 +153,4 @@ for t in range(T):
     axes[t, 1].axis("off")
 
 plt.tight_layout()
-plt.savefig(f"figs/path_{SEQ_IDX}.png")
+plt.savefig(f"figs/paths/path_{SEQ_IDX}.png")
