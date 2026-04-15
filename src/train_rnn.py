@@ -17,7 +17,6 @@ HIDDEN_DIM = 2048
 HIDDEN_LOOPS = 3
 K = 0
 
-VAL_SPLIT = 0.2
 MODEL_SAVE_PATH = "best_rnn.pt"
 
 # Device
