@@ -1,5 +1,7 @@
+import os
 import torch
 import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader, Subset
 
 from rnn import RNN
 from vae import VAE
@@ -10,16 +12,16 @@ from dataset import VAEPathDataset
 # Config
 # -------------------------
 PATHS_H5 = "vae_paths.h5"
-RNN_WEIGHTS = "2048_9_rnn.pt"
+RNN_WEIGHTS = "2048_3_rnn.pt"
 VAE_WEIGHTS = "vae.pt"
 
 # must match train_rnn.py
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 9
+HIDDEN_LOOPS = 7
 K = 0
 
-# example index of sequence to visualize
-SEQ_IDX = 4
+# indices of sequences to visualize
+SEQ_IDCS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -36,7 +38,6 @@ def decode_latents(vae, z):
     z_flat = z.reshape(-1, latent_dim)
 
     with torch.no_grad():
-        # change this if your VAE uses vae.decoder(...) instead
         x_recon = vae.decode(z_flat)
 
     x_recon = x_recon.reshape(*original_shape, *x_recon.shape[1:])
@@ -66,10 +67,13 @@ def patch_to_imshow_format(patch):
 # Load dataset
 # -------------------------
 dataset = VAEPathDataset(PATHS_H5)
+subset = Subset(dataset, SEQ_IDCS)
+loader = DataLoader(subset, batch_size=len(SEQ_IDCS), shuffle=False)
 
-moves, in_patches, out_patches = dataset[SEQ_IDX]
+# Get all sequences in one batch for efficiency
+moves, in_patches, out_patches = next(iter(loader))
 
-print("Single sample shapes:")
+print(f"Batch shapes for {len(SEQ_IDCS)} sequences:")
 print("moves:", moves.shape)
 print("in_patches:", in_patches.shape)
 print("out_patches:", out_patches.shape)
@@ -79,15 +83,14 @@ move_dim = moves.shape[-1]
 input_dim = patch_dim + move_dim
 output_dim = out_patches.shape[-1]
 
-# add batch dimension
-moves = moves.unsqueeze(0).to(device)             # (1, T, move_dim)
-in_patches = in_patches.unsqueeze(0).to(device)   # (1, T, patch_dim)
-out_patches = out_patches.unsqueeze(0).to(device) # (1, T, patch_dim)
+moves = moves.to(device)             # (B, T, move_dim)
+in_patches = in_patches.to(device)   # (B, T, patch_dim)
+out_patches = out_patches.to(device) # (B, T, patch_dim)
 
-x = torch.cat([in_patches, moves], dim=-1)        # (1, T, patch_dim + move_dim)
+x = torch.cat([in_patches, moves], dim=-1)        # (B, T, patch_dim + move_dim)
 
 # -------------------------
-# Load RNN
+# Load Models
 # -------------------------
 rnn = RNN(
     input_dim=input_dim,
@@ -100,10 +103,6 @@ rnn = RNN(
 rnn.load_state_dict(torch.load(RNN_WEIGHTS, map_location=device))
 rnn.eval()
 
-# -------------------------
-# Load VAE
-# -------------------------
-# change constructor args to match your trained VAE
 vae = VAE(
     conv_channels=[32, 64, 128, 256, 512, 1024],
     linear_features=[128, 64],
@@ -118,39 +117,48 @@ vae.eval()
 with torch.no_grad():
     pred_out_patches, _ = rnn(x)
 
-print("pred_out_patches:", pred_out_patches.shape)
+print("pred_out_patches batch shape:", pred_out_patches.shape)
 
 # -------------------------
-# Decode true and predicted latents
+# Decode true and predicted latents (Batched)
 # -------------------------
-true_imgs = decode_latents(vae, out_patches)[0]       # remove batch dim -> (T, ...)
-pred_imgs = decode_latents(vae, pred_out_patches)[0]  # remove batch dim -> (T, ...)
+true_imgs_batch = decode_latents(vae, out_patches)       # (B, T, C, H, W)
+pred_imgs_batch = decode_latents(vae, pred_out_patches)  # (B, T, C, H, W)
 
-print("Decoded shapes:")
-print("true_imgs:", true_imgs.shape)
-print("pred_imgs:", pred_imgs.shape)
+print("Decoded batch shapes:")
+print("true_imgs_batch:", true_imgs_batch.shape)
+print("pred_imgs_batch:", pred_imgs_batch.shape)
 
 # -------------------------
-# Plot side by side
+# Plot and Save
 # -------------------------
-T = min(8, true_imgs.shape[0])
+os.makedirs("figs/paths", exist_ok=True)
 
-fig, axes = plt.subplots(T, 2, figsize=(6, 2.5 * T))
+for i, seq_idx in enumerate(SEQ_IDCS):
+    true_imgs = true_imgs_batch[i]
+    pred_imgs = pred_imgs_batch[i]
+    
+    T = min(8, true_imgs.shape[0])
+    fig, axes = plt.subplots(T, 2, figsize=(6, 2.5 * T))
 
-if T == 1:
-    axes = axes[None, :]
+    if T == 1:
+        axes = axes[None, :]
 
-for t in range(T):
-    true_patch = patch_to_imshow_format(true_imgs[t])
-    pred_patch = patch_to_imshow_format(pred_imgs[t])
+    for t in range(T):
+        true_patch = patch_to_imshow_format(true_imgs[t])
+        pred_patch = patch_to_imshow_format(pred_imgs[t])
 
-    axes[t, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
-    axes[t, 0].set_title(f"True t={t}")
-    axes[t, 0].axis("off")
+        axes[t, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
+        axes[t, 0].set_title(f"True t={t}")
+        axes[t, 0].axis("off")
 
-    axes[t, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
-    axes[t, 1].set_title(f"Pred t={t}")
-    axes[t, 1].axis("off")
+        axes[t, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
+        axes[t, 1].set_title(f"Pred t={t}")
+        axes[t, 1].axis("off")
 
-plt.tight_layout()
-plt.savefig(f"figs/paths/path_{SEQ_IDX}.png")
+    plt.tight_layout()
+    save_path = f"figs/paths/path_{seq_idx:03d}.png"
+    plt.savefig(save_path)
+    plt.close(fig)
+    print(f"Saved visualization for index {seq_idx} to {save_path}")
+
