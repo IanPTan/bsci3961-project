@@ -12,7 +12,7 @@ IMAGE_PATH = "frieren.png"
 OUTPUT_PATH = "vae_paths.h5"
 VAE_WEIGHTS_PATH = "vae.pt"
 
-SPLIT_SIZES = {"train": 8000, "test": 2000}
+SPLIT_SIZES = {"train": 10000, "test": 2500, "val": 1000}
 NUM_MOVES = 128
 PATCH_SIZE = 64
 PATCH_STRIDE = 1
@@ -89,6 +89,7 @@ with hp.File(OUTPUT_PATH, "w") as ds_file:
             ds_patches[i] = v.detach().cpu()
             ds_moves[i] = moves.cpu()
             ds_coords[i] = coords.cpu()
+
         start_i += num_samples
 
 print("Done.")
