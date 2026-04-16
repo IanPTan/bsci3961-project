@@ -9,7 +9,7 @@ from dataset import VAEPathDataset
 
 # Hyperparameters
 NUM_EPOCHS = 100
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-6
 WEIGHT_DECAY = 1e-1
 BATCH_SIZE = 32
 

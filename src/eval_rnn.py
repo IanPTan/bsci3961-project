@@ -1,6 +1,8 @@
 import os
 import torch
-import matplotlib.pyplot as plt
+import cv2
+import numpy as np
+import subprocess
 from torch.utils.data import DataLoader, Subset
 
 from rnn import RNN
@@ -17,7 +19,7 @@ VAE_WEIGHTS = "vae.pt"
 
 # must match train_rnn.py
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 7
+HIDDEN_LOOPS = 5
 K = 0
 
 # indices of sequences to visualize
@@ -44,21 +46,30 @@ def decode_latents(vae, z):
     return x_recon
 
 
-def patch_to_imshow_format(patch):
+def patch_to_numpy_bgr(patch, size=512):
     """
-    Converts patch from torch shape to something matplotlib can show.
-    Supports:
-      (C, H, W) -> (H, W, C)
-      (1, H, W) -> (H, W)
-      (H, W) stays as is
+    Converts patch from torch tensor to BGR numpy array for OpenCV,
+    and resizes it to 'size x size' using nearest neighbor interpolation.
     """
-    patch = patch.detach().cpu()
+    patch = patch.detach().cpu().numpy()
 
     if patch.ndim == 3:
         if patch.shape[0] == 1:
-            patch = patch.squeeze(0)          # (1, H, W) -> (H, W)
+            patch = patch[0]          # (1, H, W) -> (H, W)
         else:
-            patch = patch.permute(1, 2, 0)    # (C, H, W) -> (H, W, C)
+            patch = np.transpose(patch, (1, 2, 0))    # (C, H, W) -> (H, W, C)
+
+    # Scale to 0-255 uint8
+    patch = (patch * 255).clip(0, 255).astype(np.uint8)
+
+    if patch.ndim == 2:
+        patch = cv2.cvtColor(patch, cv2.COLOR_GRAY2BGR)
+    else:
+        # Assumes RGB -> BGR
+        patch = cv2.cvtColor(patch, cv2.COLOR_RGB2BGR)
+
+    # Resize with no interpolation (nearest neighbor) to keep it pixelated
+    patch = cv2.resize(patch, (size, size), interpolation=cv2.INTER_NEAREST)
 
     return patch
 
@@ -130,35 +141,73 @@ print("true_imgs_batch:", true_imgs_batch.shape)
 print("pred_imgs_batch:", pred_imgs_batch.shape)
 
 # -------------------------
-# Plot and Save
+# Save Videos
 # -------------------------
 os.makedirs("figs/paths", exist_ok=True)
 
+fps = 2
+
 for i, seq_idx in enumerate(SEQ_IDCS):
+    true_latents = out_patches[i]
+    pred_latents = pred_out_patches[i]
+
     true_imgs = true_imgs_batch[i]
     pred_imgs = pred_imgs_batch[i]
+
+    T_full = true_imgs.shape[0]
+
+    # Init video writer
+    size = 512
+    final_path = f"figs/paths/path_{seq_idx:03d}.mp4"
+    temp_path = f"figs/paths/temp_{seq_idx:03d}.mp4"
     
-    T = min(8, true_imgs.shape[0])
-    fig, axes = plt.subplots(T, 2, figsize=(6, 2.5 * T))
+    # Use mp4v for the temporary file as it's a reliable intermediate format
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    writer = cv2.VideoWriter(temp_path, fourcc, fps, (size * 2, size))
 
-    if T == 1:
-        axes = axes[None, :]
+    if not writer.isOpened():
+        print(f"Error: Could not open VideoWriter for {temp_path}. skipping.")
+        continue
 
-    for t in range(T):
-        true_patch = patch_to_imshow_format(true_imgs[t])
-        pred_patch = patch_to_imshow_format(pred_imgs[t])
+    print(f"Generating temporary video: {temp_path} ({T_full} steps @ {fps}fps)")
 
-        axes[t, 0].imshow(true_patch, cmap="gray" if true_patch.ndim == 2 else None)
-        axes[t, 0].set_title(f"True t={t}")
-        axes[t, 0].axis("off")
+    for t in range(T_full):
+        tp = patch_to_numpy_bgr(true_imgs[t], size=512)
+        pp = patch_to_numpy_bgr(pred_imgs[t], size=512)
 
-        axes[t, 1].imshow(pred_patch, cmap="gray" if pred_patch.ndim == 2 else None)
-        axes[t, 1].set_title(f"Pred t={t}")
-        axes[t, 1].axis("off")
+        # Calculate MSE loss for this frame (on latents)
+        mse = torch.nn.functional.mse_loss(true_latents[t], pred_latents[t]).item()
 
-    plt.tight_layout()
-    save_path = f"figs/paths/path_{seq_idx:03d}.png"
-    plt.savefig(save_path)
-    plt.close(fig)
-    print(f"Saved visualization for index {seq_idx} to {save_path}")
+        # Add text labels (adjusted for 512x512)
+        cv2.putText(tp, f"True t={t}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+        cv2.putText(pp, f"Pred t={t}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        
+        # Add MSE loss on top right
+        mse_text = f"MSE: {mse:.4f}"
+        text_size = cv2.getTextSize(mse_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+        cv2.putText(pp, mse_text, (size - text_size[0] - 20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
+        # Concatenate side-by-side
+        frame = np.hstack([tp, pp])
+        writer.write(frame)
+
+    writer.release()
+
+    print(f"Converting to stable format: {final_path}")
+    cmd = [
+        "ffmpeg", "-y", "-i", temp_path,
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-crf", "23",
+        final_path
+    ]
+    
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.remove(temp_path) # Cleanup temp file
+        size_bytes = os.path.getsize(final_path)
+        print(f"Saved video to {final_path} (Size: {size_bytes / 1024:.1f} KB)")
+    except subprocess.CalledProcessError as e:
+        print(f"Error: ffmpeg conversion failed for {final_path}. Keeping {temp_path}.")
+
 
