@@ -9,12 +9,12 @@ from dataset import VAEPathDataset
 
 # Hyperparameters
 NUM_EPOCHS = 100
-LEARNING_RATE = 1e-6
+LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-1
 BATCH_SIZE = 32
 
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 3
+HIDDEN_LOOPS = 5
 K = 0
 
 MODEL_SAVE_PATH = "best_rnn.pt"
@@ -38,7 +38,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
 
         optimizer.zero_grad()
 
-        y_pred, h_seq = model(x)
+        y_pred, h_seq, _ = model(x)
         loss = criterion(y_pred, out_patches)
 
         loss.backward()
@@ -61,7 +61,7 @@ def evaluate(model, loader, criterion, device):
 
         x = torch.cat([in_patches, moves], dim=-1)
 
-        y_pred, h_seq = model(x)
+        y_pred, h_seq, _ = model(x)
         loss = criterion(y_pred, out_patches)
 
         total_loss += loss.item()
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     test_dataset = VAEPathDataset("vae_paths.h5", split="test")
 
     # INFER DIMENSIONS FROM ONE SAMPLE
-    sample_moves, sample_in_patches, sample_out_patches = train_dataset[0]
+    sample_moves, sample_in_patches, sample_out_patches, _ = train_dataset[0]
 
     seq_len = sample_in_patches.shape[0]
     patch_dim = sample_in_patches.shape[-1]

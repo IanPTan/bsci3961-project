@@ -115,7 +115,7 @@ vae.eval()
 # Run RNN
 # -------------------------
 with torch.no_grad():
-    pred_out_patches, _ = rnn(x)
+    pred_out_patches, _, _ = rnn(x)
 
 print("pred_out_patches batch shape:", pred_out_patches.shape)
 
