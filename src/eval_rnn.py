@@ -66,7 +66,7 @@ def patch_to_imshow_format(patch):
 # -------------------------
 # Load dataset
 # -------------------------
-dataset = VAEPathDataset(PATHS_H5, split="test")
+dataset = VAEPathDataset(PATHS_H5, split="val")
 subset = Subset(dataset, SEQ_IDCS)
 loader = DataLoader(subset, batch_size=len(SEQ_IDCS), shuffle=False)
 
