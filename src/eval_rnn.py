@@ -66,12 +66,12 @@ def patch_to_imshow_format(patch):
 # -------------------------
 # Load dataset
 # -------------------------
-dataset = VAEPathDataset(PATHS_H5)
+dataset = VAEPathDataset(PATHS_H5, split="test")
 subset = Subset(dataset, SEQ_IDCS)
 loader = DataLoader(subset, batch_size=len(SEQ_IDCS), shuffle=False)
 
 # Get all sequences in one batch for efficiency
-moves, in_patches, out_patches = next(iter(loader))
+moves, in_patches, out_patches, _ = next(iter(loader))
 
 print(f"Batch shapes for {len(SEQ_IDCS)} sequences:")
 print("moves:", moves.shape)
