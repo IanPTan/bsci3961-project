@@ -1,12 +1,10 @@
-import os
+import h5py
 import torch
-import cv2
-import numpy as np
-import subprocess
-from torch.utils.data import DataLoader, Subset
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from rnn import RNN
-from vae import VAE
 from dataset import VAEPathDataset
 
 
@@ -14,200 +12,158 @@ from dataset import VAEPathDataset
 # Config
 # -------------------------
 PATHS_H5 = "vae_paths.h5"
-RNN_WEIGHTS = "2048_3_rnn.pt"
-VAE_WEIGHTS = "vae.pt"
 
-# must match train_rnn.py
+BATCH_SIZE = 32
+
+# must match the trained model
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 5
+HIDDEN_LOOPS = 3
 K = 0
 
-# indices of sequences to visualize
-SEQ_IDCS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+RNN_WEIGHTS = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
+OUTPUT_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-def decode_latents(vae, z):
-    """
-    z: (T, latent_dim) or (B, T, latent_dim)
-    returns decoded patches
-    """
-    original_shape = z.shape[:-1]
-    latent_dim = z.shape[-1]
+@torch.no_grad()
+def evaluate_and_save(model, loader, criterion, device, output_h5_path):
+    model.eval()
+    total_loss = 0.0
 
-    z_flat = z.reshape(-1, latent_dim)
+    # infer full shapes from one batch
+    first_batch = next(iter(loader))
+    moves, in_patches, out_patches, _ = first_batch
 
-    with torch.no_grad():
-        x_recon = vae.decode(z_flat)
+    batch_size0 = moves.shape[0]
+    seq_len = moves.shape[1]
+    move_dim = moves.shape[2]
+    patch_dim = in_patches.shape[2]
+    output_dim = out_patches.shape[2]
 
-    x_recon = x_recon.reshape(*original_shape, *x_recon.shape[1:])
-    return x_recon
+    num_samples = len(loader.dataset)
 
+    print(f"num_samples: {num_samples}")
+    print(f"seq_len:     {seq_len}")
+    print(f"move_dim:    {move_dim}")
+    print(f"patch_dim:   {patch_dim}")
+    print(f"output_dim:  {output_dim}")
 
-def patch_to_numpy_bgr(patch, size=512):
-    """
-    Converts patch from torch tensor to BGR numpy array for OpenCV,
-    and resizes it to 'size x size' using nearest neighbor interpolation.
-    """
-    patch = patch.detach().cpu().numpy()
+    with h5py.File(output_h5_path, "w") as f:
+        # preallocate datasets so we can write batch-by-batch
+        y_ds = f.create_dataset(
+            "y",
+            shape=(num_samples, seq_len, output_dim),
+            dtype="float32",
+        )
+        h_ds = f.create_dataset(
+            "h_all",
+            shape=(num_samples, seq_len, model.hidden_dim),
+            dtype="float32",
+        )
+        target_ds = f.create_dataset(
+            "out_patches",
+            shape=(num_samples, seq_len, output_dim),
+            dtype="float32",
+        )
+        move_ds = f.create_dataset(
+            "moves",
+            shape=(num_samples, seq_len, move_dim),
+            dtype="float32",
+        )
+        in_patch_ds = f.create_dataset(
+            "in_patches",
+            shape=(num_samples, seq_len, patch_dim),
+            dtype="float32",
+        )
 
-    if patch.ndim == 3:
-        if patch.shape[0] == 1:
-            patch = patch[0]          # (1, H, W) -> (H, W)
-        else:
-            patch = np.transpose(patch, (1, 2, 0))    # (C, H, W) -> (H, W, C)
+        write_start = 0
 
-    # Scale to 0-255 uint8
-    patch = (patch * 255).clip(0, 255).astype(np.uint8)
+        for moves, in_patches, out_patches, _ in tqdm(loader, desc="Evaluating val and saving", unit="batch"):
+            moves = moves.to(device)
+            in_patches = in_patches.to(device)
+            out_patches = out_patches.to(device)
 
-    if patch.ndim == 2:
-        patch = cv2.cvtColor(patch, cv2.COLOR_GRAY2BGR)
-    else:
-        # Assumes RGB -> BGR
-        patch = cv2.cvtColor(patch, cv2.COLOR_RGB2BGR)
+            x = torch.cat([in_patches, moves], dim=-1)
 
-    # Resize with no interpolation (nearest neighbor) to keep it pixelated
-    patch = cv2.resize(patch, (size, size), interpolation=cv2.INTER_NEAREST)
+            y_pred, h_all, _ = model(x)
+            loss = criterion(y_pred, out_patches)
+            total_loss += loss.item()
 
-    return patch
+            bsz = moves.shape[0]
+            write_end = write_start + bsz
 
+            # move just this batch to cpu and write immediately
+            y_ds[write_start:write_end] = y_pred.detach().cpu().numpy()
+            h_ds[write_start:write_end] = h_all.detach().cpu().numpy()
+            target_ds[write_start:write_end] = out_patches.detach().cpu().numpy()
+            move_ds[write_start:write_end] = moves.detach().cpu().numpy()
+            in_patch_ds[write_start:write_end] = in_patches.detach().cpu().numpy()
 
-# -------------------------
-# Load dataset
-# -------------------------
-dataset = VAEPathDataset(PATHS_H5, split="val")
-subset = Subset(dataset, SEQ_IDCS)
-loader = DataLoader(subset, batch_size=len(SEQ_IDCS), shuffle=False)
+            write_start = write_end
 
-# Get all sequences in one batch for efficiency
-moves, in_patches, out_patches, _ = next(iter(loader))
+        # optional metadata
+        f.attrs["num_samples"] = num_samples
+        f.attrs["seq_len"] = seq_len
+        f.attrs["move_dim"] = move_dim
+        f.attrs["patch_dim"] = patch_dim
+        f.attrs["output_dim"] = output_dim
+        f.attrs["hidden_dim"] = model.hidden_dim
 
-print(f"Batch shapes for {len(SEQ_IDCS)} sequences:")
-print("moves:", moves.shape)
-print("in_patches:", in_patches.shape)
-print("out_patches:", out_patches.shape)
-
-patch_dim = in_patches.shape[-1]
-move_dim = moves.shape[-1]
-input_dim = patch_dim + move_dim
-output_dim = out_patches.shape[-1]
-
-moves = moves.to(device)             # (B, T, move_dim)
-in_patches = in_patches.to(device)   # (B, T, patch_dim)
-out_patches = out_patches.to(device) # (B, T, patch_dim)
-
-x = torch.cat([in_patches, moves], dim=-1)        # (B, T, patch_dim + move_dim)
-
-# -------------------------
-# Load Models
-# -------------------------
-rnn = RNN(
-    input_dim=input_dim,
-    hidden_dim=HIDDEN_DIM,
-    output_dim=output_dim,
-    hidden_loops=HIDDEN_LOOPS,
-    k=K,
-).to(device)
-
-rnn.load_state_dict(torch.load(RNN_WEIGHTS, map_location=device))
-rnn.eval()
-
-vae = VAE(
-    conv_channels=[32, 64, 128, 256, 512, 1024],
-    linear_features=[128, 64],
-).to(device)
-
-vae.load_state_dict(torch.load(VAE_WEIGHTS, map_location=device))
-vae.eval()
-
-# -------------------------
-# Run RNN
-# -------------------------
-with torch.no_grad():
-    pred_out_patches, _, _ = rnn(x)
-
-print("pred_out_patches batch shape:", pred_out_patches.shape)
-
-# -------------------------
-# Decode true and predicted latents (Batched)
-# -------------------------
-true_imgs_batch = decode_latents(vae, out_patches)       # (B, T, C, H, W)
-pred_imgs_batch = decode_latents(vae, pred_out_patches)  # (B, T, C, H, W)
-
-print("Decoded batch shapes:")
-print("true_imgs_batch:", true_imgs_batch.shape)
-print("pred_imgs_batch:", pred_imgs_batch.shape)
-
-# -------------------------
-# Save Videos
-# -------------------------
-os.makedirs("figs/paths", exist_ok=True)
-
-fps = 2
-
-for i, seq_idx in enumerate(SEQ_IDCS):
-    true_latents = out_patches[i]
-    pred_latents = pred_out_patches[i]
-
-    true_imgs = true_imgs_batch[i]
-    pred_imgs = pred_imgs_batch[i]
-
-    T_full = true_imgs.shape[0]
-
-    # Init video writer
-    size = 512
-    final_path = f"figs/paths/path_{seq_idx:03d}.mp4"
-    temp_path = f"figs/paths/temp_{seq_idx:03d}.mp4"
-    
-    # Use mp4v for the temporary file as it's a reliable intermediate format
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    writer = cv2.VideoWriter(temp_path, fourcc, fps, (size * 2, size))
-
-    if not writer.isOpened():
-        print(f"Error: Could not open VideoWriter for {temp_path}. skipping.")
-        continue
-
-    print(f"Generating temporary video: {temp_path} ({T_full} steps @ {fps}fps)")
-
-    for t in range(T_full):
-        tp = patch_to_numpy_bgr(true_imgs[t], size=512)
-        pp = patch_to_numpy_bgr(pred_imgs[t], size=512)
-
-        # Calculate MSE loss for this frame (on latents)
-        mse = torch.nn.functional.mse_loss(true_latents[t], pred_latents[t]).item()
-
-        # Add text labels (adjusted for 512x512)
-        cv2.putText(tp, f"True t={t}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
-        cv2.putText(pp, f"Pred t={t}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-        
-        # Add MSE loss on top right
-        mse_text = f"MSE: {mse:.4f}"
-        text_size = cv2.getTextSize(mse_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
-        cv2.putText(pp, mse_text, (size - text_size[0] - 20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-
-        # Concatenate side-by-side
-        frame = np.hstack([tp, pp])
-        writer.write(frame)
-
-    writer.release()
-
-    print(f"Converting to stable format: {final_path}")
-    cmd = [
-        "ffmpeg", "-y", "-i", temp_path,
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-crf", "23",
-        final_path
-    ]
-    
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        os.remove(temp_path) # Cleanup temp file
-        size_bytes = os.path.getsize(final_path)
-        print(f"Saved video to {final_path} (Size: {size_bytes / 1024:.1f} KB)")
-    except subprocess.CalledProcessError as e:
-        print(f"Error: ffmpeg conversion failed for {final_path}. Keeping {temp_path}.")
+    return total_loss / len(loader)
 
 
+if __name__ == "__main__":
+    # -------------------------
+    # Load validation dataset
+    # -------------------------
+    val_dataset = VAEPathDataset(PATHS_H5, split="val")
+
+    sample_moves, sample_in_patches, sample_out_patches, _ = val_dataset[0]
+
+    seq_len = sample_in_patches.shape[0]
+    patch_dim = sample_in_patches.shape[-1]
+    move_dim = sample_moves.shape[-1]
+    input_dim = patch_dim + move_dim
+    output_dim = sample_out_patches.shape[-1]
+
+    print(f"Sequence length: {seq_len}")
+    print(f"Patch dim:       {patch_dim}")
+    print(f"Move dim:        {move_dim}")
+    print(f"Input dim:       {input_dim}")
+    print(f"Output dim:      {output_dim}")
+    print(f"Val samples:     {len(val_dataset)}")
+
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    # -------------------------
+    # Load model
+    # -------------------------
+    model = RNN(
+        input_dim=input_dim,
+        hidden_dim=HIDDEN_DIM,
+        output_dim=output_dim,
+        hidden_loops=HIDDEN_LOOPS,
+        k=K,
+    ).to(device)
+
+    model.load_state_dict(torch.load(RNN_WEIGHTS, map_location=device))
+    model.eval()
+    print(f"Loaded model from {RNN_WEIGHTS}")
+
+    criterion = nn.MSELoss()
+
+    # -------------------------
+    # Run val pass and save outputs
+    # -------------------------
+    val_loss = evaluate_and_save(
+        model=model,
+        loader=val_loader,
+        criterion=criterion,
+        device=device,
+        output_h5_path=OUTPUT_H5,
+    )
+
+    print(f"Validation loss: {val_loss:.6f}")
+    print(f"Saved val predictions and hidden states to {OUTPUT_H5}")

@@ -17,7 +17,7 @@ HIDDEN_DIM = 2048
 HIDDEN_LOOPS = 5
 K = 0
 
-MODEL_SAVE_PATH = "best_rnn.pt"
+MODEL_SAVE_PATH = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
 
 # Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
