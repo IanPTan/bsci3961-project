@@ -17,7 +17,7 @@ BATCH_SIZE = 32
 
 # must match the trained model
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 3
+HIDDEN_LOOPS = 9
 K = 0
 
 RNN_WEIGHTS = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
@@ -51,6 +51,9 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
     print(f"output_dim:  {output_dim}")
 
     with h5py.File(output_h5_path, "w") as f:
+        # internal_loops = 1 (initial) + hidden_loops
+        internal_loops = 1 + model.hidden_loops
+        
         # preallocate datasets so we can write batch-by-batch
         y_ds = f.create_dataset(
             "y",
@@ -59,22 +62,7 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
         )
         h_ds = f.create_dataset(
             "h_all",
-            shape=(num_samples, seq_len, model.hidden_dim),
-            dtype="float32",
-        )
-        target_ds = f.create_dataset(
-            "out_patches",
-            shape=(num_samples, seq_len, output_dim),
-            dtype="float32",
-        )
-        move_ds = f.create_dataset(
-            "moves",
-            shape=(num_samples, seq_len, move_dim),
-            dtype="float32",
-        )
-        in_patch_ds = f.create_dataset(
-            "in_patches",
-            shape=(num_samples, seq_len, patch_dim),
+            shape=(num_samples, seq_len, internal_loops, model.hidden_dim),
             dtype="float32",
         )
 
@@ -87,7 +75,7 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
 
             x = torch.cat([in_patches, moves], dim=-1)
 
-            y_pred, h_all, _ = model(x)
+            y_pred, _, h_all = model(x) # 1: y, 2: h_seq (3D), 3: h_all (4D)
             loss = criterion(y_pred, out_patches)
             total_loss += loss.item()
 
@@ -97,9 +85,6 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
             # move just this batch to cpu and write immediately
             y_ds[write_start:write_end] = y_pred.detach().cpu().numpy()
             h_ds[write_start:write_end] = h_all.detach().cpu().numpy()
-            target_ds[write_start:write_end] = out_patches.detach().cpu().numpy()
-            move_ds[write_start:write_end] = moves.detach().cpu().numpy()
-            in_patch_ds[write_start:write_end] = in_patches.detach().cpu().numpy()
 
             write_start = write_end
 

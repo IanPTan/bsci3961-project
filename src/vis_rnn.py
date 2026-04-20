@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from rnn import RNN
 from vae import VAE
+from dataset import VAEPathDataset
 
 
 # -------------------------
@@ -19,6 +20,7 @@ from vae import VAE
 HIDDEN_DIM = 2048
 HIDDEN_LOOPS = 3
 
+PATHS_H5 = "vae_paths.h5"
 VAL_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
 VAE_WEIGHTS = "vae.pt"
 
@@ -75,13 +77,17 @@ def patch_to_numpy_bgr(patch, size=512):
 
 
 # -------------------------
-# Load Data from H5
+# Load Data from H5 and Dataset
 # -------------------------
-print(f"Loading predictions from {VAL_H5}...")
+print(f"Loading predictions from {VAL_H5} and ground truth from {PATHS_H5}...")
+dataset = VAEPathDataset(PATHS_H5, split="val")
+
 with h5py.File(VAL_H5, "r") as f:
     # Indexing into H5 datasets directly
-    out_patches = torch.from_numpy(f["out_patches"][SEQ_IDCS]).to(device)
     pred_out_patches = torch.from_numpy(f["y"][SEQ_IDCS]).to(device)
+
+# Load ground truth from original dataset
+out_patches = torch.stack([dataset[i][2] for i in SEQ_IDCS]).to(device)
 
 print(f"Batch shapes for {len(SEQ_IDCS)} sequences:")
 print("out_patches (targets):", out_patches.shape)
