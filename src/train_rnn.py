@@ -17,6 +17,10 @@ HIDDEN_DIM = 2048
 HIDDEN_LOOPS = 5
 K = 0
 
+# Masking Hyperparameters
+MASK_PROB = 0.0      # Probability of masking a patch (0.0 = disabled)
+MASK_START_IDX = 2   # Number of initial patches to never mask
+
 MODEL_SAVE_PATH = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
 
 # Device
@@ -71,8 +75,18 @@ def evaluate(model, loader, criterion, device):
 
 if __name__ == "__main__":
     # LOAD DATASET
-    train_dataset = VAEPathDataset("vae_paths.h5")
-    test_dataset = VAEPathDataset("vae_paths.h5", split="test")
+    train_dataset = VAEPathDataset(
+        "vae_paths.h5", 
+        split="train", 
+        mask_prob=MASK_PROB, 
+        mask_start_idx=MASK_START_IDX
+    )
+    test_dataset = VAEPathDataset(
+        "vae_paths.h5", 
+        split="test", 
+        mask_prob=MASK_PROB, 
+        mask_start_idx=MASK_START_IDX
+    )
 
     # INFER DIMENSIONS FROM ONE SAMPLE
     sample_moves, sample_in_patches, sample_out_patches, _ = train_dataset[0]

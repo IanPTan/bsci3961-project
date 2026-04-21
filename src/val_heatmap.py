@@ -1,19 +1,39 @@
 import os
 import h5py
 import numpy as np
+import torch as pt
+import torchvision.transforms as transforms
+from PIL import Image
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 
+from dataset import Patcher
+
 # -------------------------
 # Config
 # -------------------------
 PATHS_H5 = "vae_paths.h5"
-# Fixed 100x100 grid for better visualization
+IMAGE_PATH = "frieren.png"
+PATCH_SIZE = 64
+PATCH_STRIDE = 1
+
+# Fixed bins for visualization density
 BINS_W, BINS_H = 100, 100
-# The actual extent of the patcher coordinates
-GRID_W, GRID_H = 961, 961
+
+def get_grid_dims():
+    if not os.path.exists(IMAGE_PATH):
+        print(f"Warning: {IMAGE_PATH} not found, falling back to 961x961")
+        return 961, 961
+    
+    img = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH).convert("RGB")))
+    patcher = Patcher(img, PATCH_SIZE, PATCH_STRIDE)
+    n_h, n_w = patcher.shape
+    print(f"Detected grid dimensions: {n_w}x{n_h} from {IMAGE_PATH}")
+    return n_w, n_h
+
+GRID_W, GRID_H = get_grid_dims()
 
 def create_val_heatmap():
     if not os.path.exists(PATHS_H5):

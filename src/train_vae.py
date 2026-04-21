@@ -11,13 +11,14 @@ from dataset import PatchDataset
 IMAGE_PATH = 'frieren.png'
 print(f"Using image path: {IMAGE_PATH}")
 IMG = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH)))
+BACKUP_PATH = "backup_vae.pt"
                             
 # Hyperparameters
 NUM_EPOCHS = 100
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3
 BATCH_SIZE = 16
-CONV_CHANNELS = [32, 64, 128, 256, 512, 1024]
-LINEAR_FEATURES = [128, 64]
+CONV_CHANNELS = [32, 64, 128, 256, 512, 512, 1024, 1024]
+LINEAR_FEATURES = [512, 128, 64]
 best_val = 8000
 BETTER_BY = 1
 
@@ -93,12 +94,12 @@ for epoch in range(NUM_EPOCHS):
 
     if best_val - avg_val_loss > BETTER_BY:
         best_val = avg_val_loss
-        pt.save(vae_model.state_dict(), "backup.pt")
+        pt.save(vae_model.state_dict(), BACKUP_PATH)
 
     print(f'Epoch [{epoch+1}/{NUM_EPOCHS}] | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | LR: {lr}')
 
 print("VAE training complete.")
-pt.save(vae_model.state_dict(), "backup.pt")
+pt.save(vae_model.state_dict(), BACKUP_PATH)
 
 # Create a figure with 2 rows and 1 column
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))

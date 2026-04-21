@@ -16,8 +16,8 @@ CONV_CHANNELS = [32, 64, 128, 256, 512, 1024]
 LINEAR_FEATURES = [128, 64]
 
 print(f"Using image path: {IMAGE_PATH}")
-IMG = transforms.ToTensor()(transforms.Resize(128)(Image.open(IMAGE_PATH)))
-dataset = PatchDataset(IMG, 64, 1)
+IMG = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH)))
+dataset = PatchDataset(IMG, 1024, 1)
 
 device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")

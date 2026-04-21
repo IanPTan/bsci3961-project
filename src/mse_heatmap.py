@@ -2,10 +2,14 @@ import os
 import h5py
 import numpy as np
 import torch
+import torchvision.transforms as transforms
+from PIL import Image
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
+
+from dataset import Patcher
 
 # -------------------------
 # Config
@@ -15,19 +19,22 @@ HIDDEN_LOOPS = 3
 
 VAL_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
 PATHS_H5 = "vae_paths.h5"
-PATCHES_H5 = "vae_patches.h5"
 IMAGE_PATH = "frieren.png"
+PATCH_SIZE = 64
+PATCH_STRIDE = 1
 
-# Determine grid size from the number of unique patches (assumes square grid)
-if os.path.exists(PATCHES_H5):
-    with h5py.File(PATCHES_H5, "r") as f:
-        num_patches = len(f["coords"])
-        grid_size = int(np.sqrt(num_patches))
-        GRID_H, GRID_W = grid_size, grid_size
-        print(f"Detected {GRID_H}x{GRID_W} grid from {PATCHES_H5}")
-else:
-    # Fallback to default
-    GRID_H, GRID_W = 961, 961
+def get_grid_dims():
+    if not os.path.exists(IMAGE_PATH):
+        print(f"Warning: {IMAGE_PATH} not found, falling back to 961x961")
+        return 961, 961
+    
+    img = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH).convert("RGB")))
+    patcher = Patcher(img, PATCH_SIZE, PATCH_STRIDE)
+    n_h, n_w = patcher.shape
+    print(f"Detected grid dimensions: {n_w}x{n_h} from {IMAGE_PATH}")
+    return n_h, n_w
+
+GRID_H, GRID_W = get_grid_dims()
 
 
 def create_heatmap():

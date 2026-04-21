@@ -104,13 +104,16 @@ class VAEPatchDataset(Dataset):
 
 
 class VAEPathDataset(Dataset):
-    def __init__(self, h5_path="vae_paths.h5", split="train"):
+    def __init__(self, h5_path="vae_paths.h5", split="train", mask_prob=0.0, mask_start_idx=0):
         self.ds_file = hp.File(h5_path, "r")
 
         self.group = self.ds_file[split]
         self.ds_patches = self.group["patches"]
         self.ds_moves = self.group["moves"]
         self.ds_coords = self.group["coords"]        
+        
+        self.mask_prob = mask_prob
+        self.mask_start_idx = mask_start_idx
 
     def __len__(self):
         return len(self.ds_moves)   # or len(self.ds_patches), should match
@@ -122,6 +125,18 @@ class VAEPathDataset(Dataset):
 
         in_patches = patches[:-1]
         out_patches = patches[1:]
+
+        # Apply masking to input patches
+        if self.mask_prob > 0:
+            seq_len = in_patches.shape[0]
+            if seq_len > self.mask_start_idx:
+                # Create mask: 1.0 = keep, 0.0 = mask
+                mask_to_fill = pt.bernoulli(
+                    pt.full((seq_len - self.mask_start_idx, 1), 1.0 - self.mask_prob)
+                )
+                mask_prefix = pt.ones((self.mask_start_idx, 1))
+                full_mask = pt.cat([mask_prefix, mask_to_fill], dim=0)
+                in_patches = in_patches * full_mask
 
         return moves, in_patches, out_patches, coords
 
