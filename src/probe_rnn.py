@@ -25,7 +25,14 @@ IMAGE_PATH = "frieren.png"
 
 # Analysis Params
 K_LOOPS = 4    # Number of best-performing loops to analyze
-K_NEURONS = 10  # Number of top neurons to visualize per loop
+K_NEURONS = 30 # Number of top neurons to visualize per loop (after filtering)
+COVERAGE_THRESHOLD = 0.3 # Activation threshold to count as 'occupied' space
+
+# Score Gains (Exponents for multiplicative weighting)
+SALIENCY_GAIN = 1
+COVERAGE_GAIN = 2
+SKEW_GAIN = 1
+
 
 # Patcher Params (to match gen_vae_paths.py)
 PATCH_SIZE = 64
@@ -105,8 +112,10 @@ def probe_grid_cells():
             skew_norm = (skew_dist / MAX_DIST).clamp(0, 1)
 
             # 3. Global Coordinate Score
-            # High saliency * High coverage * Low skew
-            global_score = saliency * coverage * (1.0 - skew_norm)
+            # Multiplicative weighting using exponents: S^w1 * C^w2 * (1-K)^w3
+            global_score = (saliency ** SALIENCY_GAIN) * \
+                           (coverage ** COVERAGE_GAIN) * \
+                           ((1.0 - skew_norm) ** SKEW_GAIN)
             
             top_indices = torch.topk(global_score, K_NEURONS).indices.tolist()
             
