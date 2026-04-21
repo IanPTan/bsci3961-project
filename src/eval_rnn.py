@@ -17,8 +17,12 @@ BATCH_SIZE = 32
 
 # must match the trained model
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 9
+HIDDEN_LOOPS = 5
 K = 0
+
+# Masking Hyperparameters
+MASK_PROB = 0
+MASK_START_IDX = 4
 
 RNN_WEIGHTS = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
 OUTPUT_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
@@ -34,7 +38,7 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
 
     # infer full shapes from one batch
     first_batch = next(iter(loader))
-    moves, in_patches, out_patches, _ = first_batch
+    moves, in_patches, out_patches, _, mask_batch = first_batch
 
     batch_size0 = moves.shape[0]
     seq_len = moves.shape[1]
@@ -65,10 +69,15 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
             shape=(num_samples, seq_len, internal_loops, model.hidden_dim),
             dtype="float32",
         )
+        mask_ds = f.create_dataset(
+            "mask",
+            shape=(num_samples, seq_len),
+            dtype="float32",
+        )
 
         write_start = 0
 
-        for moves, in_patches, out_patches, _ in tqdm(loader, desc="Evaluating val and saving", unit="batch"):
+        for moves, in_patches, out_patches, _, mask in tqdm(loader, desc="Evaluating val and saving", unit="batch"):
             moves = moves.to(device)
             in_patches = in_patches.to(device)
             out_patches = out_patches.to(device)
@@ -85,6 +94,7 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
             # move just this batch to cpu and write immediately
             y_ds[write_start:write_end] = y_pred.detach().cpu().numpy()
             h_ds[write_start:write_end] = h_all.detach().cpu().numpy()
+            mask_ds[write_start:write_end] = mask.cpu().numpy()
 
             write_start = write_end
 
@@ -103,9 +113,14 @@ if __name__ == "__main__":
     # -------------------------
     # Load validation dataset
     # -------------------------
-    val_dataset = VAEPathDataset(PATHS_H5, split="val")
+    val_dataset = VAEPathDataset(
+        PATHS_H5, 
+        split="val",
+        mask_prob=MASK_PROB,
+        mask_start_idx=MASK_START_IDX
+    )
 
-    sample_moves, sample_in_patches, sample_out_patches, _ = val_dataset[0]
+    sample_moves, sample_in_patches, sample_out_patches, _, _ = val_dataset[0]
 
     seq_len = sample_in_patches.shape[0]
     patch_dim = sample_in_patches.shape[-1]

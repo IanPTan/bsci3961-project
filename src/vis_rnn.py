@@ -18,7 +18,11 @@ from dataset import VAEPathDataset
 # -------------------------
 # must match the trained model/eval results
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 3
+HIDDEN_LOOPS = 5
+
+# Masking Hyperparameters (should match eval_rnn.py)
+MASK_PROB = 0
+MASK_START_IDX = 4
 
 PATHS_H5 = "vae_paths.h5"
 VAL_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
@@ -80,13 +84,23 @@ def patch_to_numpy_bgr(patch, size=512):
 # Load Data from H5 and Dataset
 # -------------------------
 print(f"Loading predictions from {VAL_H5} and ground truth from {PATHS_H5}...")
-dataset = VAEPathDataset(PATHS_H5, split="val")
+dataset = VAEPathDataset(
+    PATHS_H5, 
+    split="val",
+    mask_prob=MASK_PROB,
+    mask_start_idx=MASK_START_IDX
+)
 
 with h5py.File(VAL_H5, "r") as f:
     # Indexing into H5 datasets directly
     pred_out_patches = torch.from_numpy(f["y"][SEQ_IDCS]).to(device)
+    # Load masks if they exist
+    if "mask" in f:
+        masks_batch = torch.from_numpy(f["mask"][SEQ_IDCS]).to(device)
+    else:
+        masks_batch = torch.ones((len(SEQ_IDCS), pred_out_patches.shape[1])).to(device)
 
-# Load ground truth from original dataset
+# Load ground truth from original dataset (index 2 is out_patches)
 out_patches = torch.stack([dataset[i][2] for i in SEQ_IDCS]).to(device)
 
 print(f"Batch shapes for {len(SEQ_IDCS)} sequences:")
@@ -164,6 +178,7 @@ for i, seq_idx in enumerate(SEQ_IDCS):
     pred_imgs = pred_imgs_batch[i]
 
     T_full = true_imgs.shape[0]
+    masks = masks_batch[i]
 
     # Init video writer
     size = 512
@@ -184,17 +199,29 @@ for i, seq_idx in enumerate(SEQ_IDCS):
         tp = patch_to_numpy_bgr(true_imgs[t], size=512)
         pp = patch_to_numpy_bgr(pred_imgs[t], size=512)
 
+        is_masked = masks[t].item() == 0
+
         # Calculate MSE loss for this frame (on latents)
         mse = torch.nn.functional.mse_loss(true_latents[t], pred_latents[t]).item()
 
-        # Add text labels (adjusted for 512x512)
-        cv2.putText(tp, f"True t={t}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
-        cv2.putText(pp, f"Pred t={t}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        # Add text labels
+        cv2.putText(tp, "Ground Truth", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+        cv2.putText(pp, "Prediction", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+
+        # Top Right Info Stack on Prediction Patch
+        info_lines = [
+            f"Step: {t}",
+            f"MSE: {mse:.4f}",
+            f"Masked: {'Yes' if is_masked else 'No'}"
+        ]
         
-        # Add MSE loss on top right
-        mse_text = f"MSE: {mse:.4f}"
-        text_size = cv2.getTextSize(mse_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
-        cv2.putText(pp, mse_text, (size - text_size[0] - 20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        for idx, text in enumerate(info_lines):
+            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+            x_pos = size - text_size[0] - 20
+            y_pos = 40 + idx * 30
+            # Highlight masking in red if active
+            color = (0, 0, 255) if (idx == 2 and is_masked) else (255, 255, 255)
+            cv2.putText(pp, text, (x_pos, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
         # Concatenate side-by-side
         frame = np.hstack([tp, pp])

@@ -9,17 +9,19 @@ from dataset import VAEPathDataset
 
 # Hyperparameters
 NUM_EPOCHS = 100
-LEARNING_RATE = 1e-6
-WEIGHT_DECAY = 1e-1
+LEARNING_RATE = 1e-3
 BATCH_SIZE = 32
+WEIGHT_DECAY = 1e-2
+ADAMW_BETAS = (0.9, 0.99)
+
 
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 5
+HIDDEN_LOOPS = 9
 K = 0
 
 # Masking Hyperparameters
-MASK_PROB = 0.0      # Probability of masking a patch (0.0 = disabled)
-MASK_START_IDX = 2   # Number of initial patches to never mask
+MASK_PROB = 0.5      # Probability of masking a patch (0.0 = disabled)
+MASK_START_IDX = 4   # Number of initial patches to never mask
 
 MODEL_SAVE_PATH = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
 
@@ -31,8 +33,9 @@ print(f"Using device: {device}")
 def train_one_epoch(model, loader, optimizer, criterion, device):
     model.train()
     total_loss = 0.0
+    pbar = tqdm(loader, desc="Training...", unit="batch")
 
-    for moves, in_patches, out_patches, _ in tqdm(loader, desc="Training...", unit="batch"):
+    for moves, in_patches, out_patches, _, _ in pbar:
         moves = moves.to(device)
         in_patches = in_patches.to(device)
         out_patches = out_patches.to(device)
@@ -48,7 +51,9 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        batch_loss = loss.item()
+        total_loss += batch_loss
+        pbar.set_postfix(mse=f"{batch_loss:.6f}")
 
     return total_loss / len(loader)
 
@@ -58,7 +63,7 @@ def evaluate(model, loader, criterion, device):
     model.eval()
     total_loss = 0.0
 
-    for moves, in_patches, out_patches, _ in tqdm(loader, desc="Evaluating...", unit="batch"):
+    for moves, in_patches, out_patches, _, _ in tqdm(loader, desc="Evaluating...", unit="batch"):
         moves = moves.to(device)
         in_patches = in_patches.to(device)
         out_patches = out_patches.to(device)
@@ -89,7 +94,7 @@ if __name__ == "__main__":
     )
 
     # INFER DIMENSIONS FROM ONE SAMPLE
-    sample_moves, sample_in_patches, sample_out_patches, _ = train_dataset[0]
+    sample_moves, sample_in_patches, sample_out_patches, _, _ = train_dataset[0]
 
     seq_len = sample_in_patches.shape[0]
     patch_dim = sample_in_patches.shape[-1]
@@ -124,7 +129,12 @@ if __name__ == "__main__":
     except Exception:
         print("using fresh weights")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), 
+        lr=LEARNING_RATE, 
+        weight_decay=WEIGHT_DECAY,
+        betas=ADAMW_BETAS
+    )
     criterion = nn.MSELoss()
 
     best_val_loss = float("inf")

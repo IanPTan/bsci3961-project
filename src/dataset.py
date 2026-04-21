@@ -66,7 +66,9 @@ class PathDataset(Dataset):
         in_patches = patches[:-1]
         out_patches = patches[1:]
 
-        return moves, in_patches, out_patches
+        mask = pt.ones(in_patches.shape[0])
+
+        return moves, in_patches, out_patches, mask
 
 
 class PatchDataset(Dataset):
@@ -125,20 +127,22 @@ class VAEPathDataset(Dataset):
 
         in_patches = patches[:-1]
         out_patches = patches[1:]
+        
+        seq_len = in_patches.shape[0]
 
         # Apply masking to input patches
-        if self.mask_prob > 0:
-            seq_len = in_patches.shape[0]
-            if seq_len > self.mask_start_idx:
-                # Create mask: 1.0 = keep, 0.0 = mask
-                mask_to_fill = pt.bernoulli(
-                    pt.full((seq_len - self.mask_start_idx, 1), 1.0 - self.mask_prob)
-                )
-                mask_prefix = pt.ones((self.mask_start_idx, 1))
-                full_mask = pt.cat([mask_prefix, mask_to_fill], dim=0)
-                in_patches = in_patches * full_mask
+        if self.mask_prob > 0 and seq_len > self.mask_start_idx:
+            # Create mask: 1.0 = keep, 0.0 = mask
+            mask_to_fill = pt.bernoulli(
+                pt.full((seq_len - self.mask_start_idx,), 1.0 - self.mask_prob)
+            )
+            mask_prefix = pt.ones(self.mask_start_idx)
+            full_mask = pt.cat([mask_prefix, mask_to_fill], dim=0)
+            in_patches = in_patches * full_mask.unsqueeze(-1)
+        else:
+            full_mask = pt.ones(seq_len)
 
-        return moves, in_patches, out_patches, coords
+        return moves, in_patches, out_patches, coords, full_mask
 
     def __del__(self):
         self.ds_file.close()
