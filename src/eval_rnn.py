@@ -17,7 +17,7 @@ BATCH_SIZE = 32
 
 # must match the trained model
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 5
+HIDDEN_LOOPS = 9
 K = 0
 
 # Masking Hyperparameters

@@ -1,22 +1,32 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
+from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
 from tqdm import tqdm
+from pytorch_optimizer import OrthoGrad, AdamW, create_optimizer
 
 from rnn import RNN
 from dataset import VAEPathDataset
 
 
 # Hyperparameters
-NUM_EPOCHS = 100
-LEARNING_RATE = 1e-5
+NUM_EPOCHS = 200
+LEARNING_RATE = 1e-4
 BATCH_SIZE = 32
-WEIGHT_DECAY = 1e-2
-ADAMW_BETAS = (0.9, 0.99)
+WEIGHT_DECAY = 1e-3
+ADAMW_BETAS = (0.9, 0.999)
+
+# LR Schedule Hyperparameters
+WARMUP_PROPORTION = 0.1
 
 
-HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 9
+# OrthoGrad Hyperparameters
+USE_ORTHOGRAD = False
+ORTHOGRAD_EPS = 1e-5
+
+
+HIDDEN_DIM = 4096
+HIDDEN_LOOPS = 7
 K = 0
 
 # Masking Hyperparameters
@@ -30,7 +40,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-def train_one_epoch(model, loader, optimizer, criterion, device):
+def train_one_epoch(model, loader, optimizer, scheduler, criterion, device):
     model.train()
     total_loss = 0.0
     pbar = tqdm(loader, desc="Training...", unit="batch")
@@ -50,6 +60,10 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
 
         loss.backward()
         optimizer.step()
+        
+        # Step the scheduler (per-batch)
+        if scheduler is not None:
+            scheduler.step()
 
         batch_loss = loss.item()
         total_loss += batch_loss
@@ -129,22 +143,45 @@ if __name__ == "__main__":
     except Exception:
         print("using fresh weights")
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(), 
-        lr=LEARNING_RATE, 
+    # OPTIMIZER
+    optimizer = create_optimizer(
+        model,
+        optimizer_name='adamw',
+        lr=LEARNING_RATE,
         weight_decay=WEIGHT_DECAY,
-        betas=ADAMW_BETAS
+        betas=ADAMW_BETAS,
+        use_orthograd=USE_ORTHOGRAD,
+        eps=ORTHOGRAD_EPS
     )
+
+    # SCHEDULER
+    total_batches = len(train_loader)
+    TOTAL_STEPS = NUM_EPOCHS * total_batches
+    WARMUP_STEPS = int(TOTAL_STEPS * WARMUP_PROPORTION)
+    
+    print(f"Total steps:  {TOTAL_STEPS}")
+    print(f"Warmup steps: {WARMUP_STEPS}")
+
+    warmup_sch = LinearLR(optimizer, start_factor=0.0001, end_factor=1.0, total_iters=WARMUP_STEPS)
+    main_sch = CosineAnnealingLR(optimizer, T_max=(TOTAL_STEPS - WARMUP_STEPS))
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup_sch, main_sch],
+        milestones=[WARMUP_STEPS]
+    )
+
     criterion = nn.MSELoss()
 
     best_val_loss = float("inf")
 
     for epoch in range(NUM_EPOCHS):
-        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
+        train_loss = train_one_epoch(model, train_loader, optimizer, scheduler, criterion, device)
         val_loss = evaluate(model, val_loader, criterion, device)
 
+        current_lr = optimizer.param_groups[0]['lr']
         print(
             f"Epoch [{epoch+1}/{NUM_EPOCHS}] | "
+            f"LR: {current_lr:.2e} | "
             f"Train Loss: {train_loss:.6f} | "
             f"Val Loss: {val_loss:.6f}"
         )

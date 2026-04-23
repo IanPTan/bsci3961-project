@@ -11,7 +11,7 @@ import numpy as np
 # Config
 # -------------------------
 HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 5
+HIDDEN_LOOPS = 9
 
 VAL_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
 PATHS_H5 = "vae_paths.h5"
@@ -20,7 +20,7 @@ WEIGHTS_OUT = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_pos_weights.pt" # Changed to .pt for
 # Training Hyperparameters
 BATCH_SIZE = 1024
 LR = 1e-4
-EPOCHS = 100
+EPOCHS = 200
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class PositionMLP(nn.Module):
