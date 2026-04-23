@@ -12,21 +12,41 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 
+import random
+
 from vae import VAE
 from dataset import PatchDataset
 
 DEFAULT_CONFIG = {
     "image_path": "data/frieren.png",
+    "image_size": 1024,
     "num_epochs": 100,
     "learning_rate": 1e-3,
     "batch_size": 16,
+    "weight_decay": 0.01,
+    "adamw_betas": [0.9, 0.999],
     "conv_channels": [32, 64, 128, 256, 512, 512, 1024, 1024],
     "linear_features": [512, 128, 64],
     "better_by": 1.0,
     "patch_size": 64,
     "patch_stride": 1,
-    "val_ratio": 0.2
+    "val_ratio": 0.2,
+    "scheduler_patience": 10,
+    "scheduler_factor": 0.5,
+    "rng_seed": 42,
+    "num_workers": 4,
+    "pin_memory": True
 }
+
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    pt.manual_seed(seed)
+    pt.cuda.manual_seed(seed)
+    pt.cuda.manual_seed_all(seed)
+    # pt.backends.cudnn.deterministic = True
+    # pt.backends.cudnn.benchmark = False
 
 def write_toml(config, path):
     with open(path, "w") as f:
@@ -74,16 +94,21 @@ def main():
     print(f"Using experiment directory: {exp_dir}")
     
     config_path = exp_dir / "config.toml"
+    config = DEFAULT_CONFIG.copy()
     if config_path.exists():
         with open(config_path, "rb") as f:
-            config = tomllib.load(f)
-            # Merge with defaults
-            for k, v in DEFAULT_CONFIG.items():
-                if k not in config:
-                    config[k] = v
+            loaded_config = tomllib.load(f)
+            config.update(loaded_config)
     else:
-        config = DEFAULT_CONFIG.copy()
         write_toml(config, config_path)
+    
+    # Apply global seed
+    seed_everything(config["rng_seed"])
+    
+    print("\n--- Configuration ---")
+    for k, v in config.items():
+        print(f"{k}: {v}")
+    print("----------------------\n")
         
     # Set up figs dir
     figs_dir = exp_dir / "figs"
@@ -92,14 +117,24 @@ def main():
     # Load Image
     image_path = config["image_path"]
     print(f"Using image path: {image_path}")
-    IMG = transforms.ToTensor()(transforms.Resize(1024)(Image.open(image_path)))
+    IMG = transforms.ToTensor()(transforms.Resize(config["image_size"])(Image.open(image_path)))
     
     device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
     vae_model = VAE(conv_channels=config["conv_channels"], linear_features=config["linear_features"]).to(device)
-    optimizer = pt.optim.AdamW(vae_model.parameters(), lr=config["learning_rate"])
-    scheduler = pt.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
+    optimizer = pt.optim.AdamW(
+        vae_model.parameters(), 
+        lr=config["learning_rate"],
+        betas=tuple(config["adamw_betas"]),
+        weight_decay=config["weight_decay"]
+    )
+    scheduler = pt.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='min', 
+        factor=config["scheduler_factor"], 
+        patience=config["scheduler_patience"]
+    )
     
     dataset = PatchDataset(IMG, config["patch_size"], config["patch_stride"])
     
@@ -108,11 +143,23 @@ def main():
     val_size = len(dataset) - train_size
     
     # Use fixed generator for reproducibility of splits across resuming
-    gen = pt.Generator().manual_seed(42)
+    gen = pt.Generator().manual_seed(config["rng_seed"])
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=gen)
     
-    train_loader = DataLoader(dataset=train_dataset, batch_size=config["batch_size"], shuffle=True)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=config["batch_size"], shuffle=False)
+    train_loader = DataLoader(
+        dataset=train_dataset, 
+        batch_size=config["batch_size"], 
+        shuffle=True,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"]
+    )
+    val_loader = DataLoader(
+        dataset=val_dataset, 
+        batch_size=config["batch_size"], 
+        shuffle=False,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"]
+    )
     
     start_epoch = 0
     best_val = float('inf')
@@ -241,8 +288,9 @@ def main():
     val_iter = iter(val_loader)
     images, _ = next(val_iter)
     images = images.to(device)
-    with pt.no_grad():
-        recon_images, _, _ = vae_model(images)
+    
+    # Use the new helper for clean 0-1 outputs
+    recon_images = vae_model.reconstruct(images)
         
     for i in range(min(len(images), 5)):
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
@@ -250,6 +298,7 @@ def main():
         axes[0].set_title("Original")
         axes[0].axis('off')
         
+        # Already pixels now
         axes[1].imshow(recon_images[i].detach().cpu().permute(1, 2, 0).clamp(0, 1))
         axes[1].set_title("Reconstruction")
         axes[1].axis('off')

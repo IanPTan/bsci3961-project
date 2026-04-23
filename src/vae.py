@@ -85,6 +85,8 @@ class VAE(nn.Module):
         return mu, logvar
 
     def reparameterize(self, mu, logvar):
+        # Clamp logvar to prevent KLD from exploding
+        logvar = pt.clamp(logvar, -10, 10)
         std = pt.exp(0.5 * logvar)
         eps = pt.randn_like(std)
         return mu + eps * std
@@ -104,8 +106,6 @@ class VAE(nn.Module):
             x = deconv(x)
             if i != len(self.dec_convs) - 1:
                 x = F.gelu(x)
-            else:
-                x = pt.sigmoid(x) # Final activation
         return x
 
     def forward(self, x):
@@ -114,6 +114,32 @@ class VAE(nn.Module):
         recon_x = self.decode(z)
         return recon_x, mu, logvar
 
+    @pt.no_grad()
+    def reconstruct(self, x):
+        """Helper for inference: returns actual 0-1 pixel values from an input image."""
+        is_train = self.training
+        self.eval()
+        
+        logits, _, _ = self.forward(x)
+        pixels = pt.sigmoid(logits)
+        
+        if is_train:
+            self.train()
+        return pixels
+
+    @pt.no_grad()
+    def generate(self, z):
+        """Helper for inference: returns actual 0-1 pixel values from a latent vector z."""
+        is_train = self.training
+        self.eval()
+        
+        logits = self.decode(z)
+        pixels = pt.sigmoid(logits)
+        
+        if is_train:
+            self.train()
+        return pixels
+
     def vae_loss(self, recon_x, x, mu, logvar):
         # Note: If dimensions mismatch due to GAP (1x1 -> upsampling),
         # you might need to interpolate recon_x or x.
@@ -121,7 +147,8 @@ class VAE(nn.Module):
         if recon_x.shape != x.shape:
              recon_x = F.interpolate(recon_x, size=x.shape[2:], mode='bilinear', align_corners=False)
 
-        BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
+        # Use binary_cross_entropy_with_logits for numerical stability
+        BCE = F.binary_cross_entropy_with_logits(recon_x, x, reduction='sum')
         KLD = -0.5 * pt.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return BCE + KLD
 

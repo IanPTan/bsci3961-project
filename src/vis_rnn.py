@@ -45,8 +45,8 @@ def decode_latents(vae, z):
 
     z_flat = z.reshape(-1, latent_dim)
 
-    with torch.no_grad():
-        x_recon = vae.decode(z_flat)
+    # Use the new generate helper to get 0-1 pixel values
+    x_recon = vae.generate(z_flat)
 
     x_recon = x_recon.reshape(*original_shape, *x_recon.shape[1:])
     return x_recon
