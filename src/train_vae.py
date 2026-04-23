@@ -237,6 +237,11 @@ def main():
         
         print(f'Epoch [{epoch+1}/{num_epochs}] | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | LR: {lr}')
         
+        # Stop training if NaN occurs to prevent weight corruption
+        if not np.isfinite(avg_train_loss) or not np.isfinite(avg_val_loss):
+            print("NaN/Inf loss detected. Stopping training.")
+            break
+
         # Save to H5
         with h5py.File(loss_h5_path, "w") as f:
             f.create_dataset("train_losses", data=np.array(train_losses))
