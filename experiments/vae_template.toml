@@ -1,0 +1,35 @@
+# VAE Experiment Template Configuration
+# This file contains the default hyperparameters for a VAE training run.
+# To use a custom config, create a new experiment folder (e.g., experiments/vae_2/)
+# and copy this file into it as 'config.toml'.
+
+# --- Data & Image Settings ---
+image_path = "data/frieren.png"
+image_size = 1024                # Image will be resized to this (Square)
+patch_size = 64                  # Size of each patch (Square)
+patch_stride = 1                 # Stride for patch extraction (1 = overlapping, 64 = non-overlapping)
+val_ratio = 0.2                  # 20% of patches used for validation
+
+# --- Model Architecture ---
+# Channels for each convolutional layer (each layer reduces spatial size by 2x)
+conv_channels = [32, 64, 128, 256, 512, 512, 1024, 1024]
+# Features for linear layers before the latent bottleneck
+# The last value (64) is the Latent Dimension.
+linear_features = [512, 128, 64]
+
+# --- Training Hyperparameters ---
+num_epochs = 100
+learning_rate = 0.001
+batch_size = 16
+weight_decay = 0.01              # Regularization (AdamW)
+adamw_betas = [0.9, 0.999]       # Standard AdamW momentum parameters
+
+# --- Scheduler (ReduceLROnPlateau) ---
+scheduler_patience = 10          # Number of epochs to wait without improvement before dropping LR
+scheduler_factor = 0.5           # Multiply LR by this factor when patience is hit
+better_by = 1.0                  # Minimum improvement in val loss to be considered "better"
+
+# --- Reproducibility & Performance ---
+rng_seed = 42                    # Fixed seed for dataset splits and weight init
+num_workers = 4                  # Number of CPU threads for data loading
+pin_memory = true                # Speeds up data transfer to GPU (if available)
