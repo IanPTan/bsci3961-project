@@ -25,8 +25,15 @@ DEFAULT_CONFIG = {
     "batch_size": 16,
     "weight_decay": 0.01,
     "adamw_betas": [0.9, 0.999],
-    "conv_channels": [32, 64, 128, 256, 512, 512, 1024, 1024],
-    "linear_features": [512, 128, 64],
+    "enc_channels": [64, 128, 256, 512, 1024],
+    "enc_inner_channels": [32, 64, 128, 256, 512],
+    "enc_scales": [2, 2, 2, 2, 2],
+    "enc_linears": [512, 256],
+    "dec_channels": [1024, 512, 256, 128, 64],
+    "dec_inner_channels": [512, 256, 128, 64, 32],
+    "dec_scales": [2, 2, 2, 2, 2],
+    "dec_linears": [256, 512],
+    "latent_dim": 128,
     "better_by": 1.0,
     "patch_size": 64,
     "patch_stride": 1,
@@ -122,7 +129,18 @@ def main():
     device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    vae_model = VAE(conv_channels=config["conv_channels"], linear_features=config["linear_features"]).to(device)
+    vae_model = VAE(
+        enc_channels=config["enc_channels"],
+        enc_inner_channels=config["enc_inner_channels"],
+        enc_scales=config["enc_scales"],
+        enc_linears=config["enc_linears"],
+        dec_channels=config["dec_channels"],
+        dec_inner_channels=config["dec_inner_channels"],
+        dec_scales=config["dec_scales"],
+        dec_linears=config["dec_linears"],
+        latent_dim=config["latent_dim"],
+        image_size=config["patch_size"]
+    ).to(device)
     optimizer = pt.optim.AdamW(
         vae_model.parameters(), 
         lr=config["learning_rate"],

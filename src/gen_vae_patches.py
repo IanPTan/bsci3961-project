@@ -122,8 +122,16 @@ def main():
 
     print(f"Loading VAE from {vae_dir}...")
     vae_model = VAE(
-        conv_channels=vae_config["conv_channels"], 
-        linear_features=vae_config["linear_features"]
+        enc_channels=vae_config["enc_channels"],
+        enc_inner_channels=vae_config["enc_inner_channels"],
+        enc_scales=vae_config["enc_scales"],
+        enc_linears=vae_config["enc_linears"],
+        dec_channels=vae_config["dec_channels"],
+        dec_inner_channels=vae_config["dec_inner_channels"],
+        dec_scales=vae_config["dec_scales"],
+        dec_linears=vae_config["dec_linears"],
+        latent_dim=vae_config["latent_dim"],
+        image_size=vae_config.get("patch_size", 64)
     ).to(device)
     
     vae_weights_path = vae_dir / f"{vae_dir.name}.pt"
@@ -135,7 +143,7 @@ def main():
     print("Loaded VAE model.")
 
     num_patches = len(dataset)
-    enc_dim = vae_config["linear_features"][-1]
+    enc_dim = vae_config["latent_dim"]
     output_h5 = exp_dir / "vae_patches.h5"
 
     with hp.File(output_h5, "w") as ds_file:

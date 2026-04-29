@@ -75,7 +75,18 @@ def main():
 
     # 2. Reconstructions
     device = pt.device('cuda' if pt.cuda.is_available() else 'cpu')
-    vae_model = VAE(conv_channels=config["conv_channels"], linear_features=config["linear_features"]).to(device)
+    vae_model = VAE(
+        enc_channels=config["enc_channels"],
+        enc_inner_channels=config["enc_inner_channels"],
+        enc_scales=config["enc_scales"],
+        enc_linears=config["enc_linears"],
+        dec_channels=config["dec_channels"],
+        dec_inner_channels=config["dec_inner_channels"],
+        dec_scales=config["dec_scales"],
+        dec_linears=config["dec_linears"],
+        latent_dim=config["latent_dim"],
+        image_size=config["patch_size"]
+    ).to(device)
     
     weights_path = exp_dir / f"{exp_dir.name}.pt"
     if not weights_path.exists(): weights_path = exp_dir / "checkpoint.pt"

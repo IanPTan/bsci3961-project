@@ -11,11 +11,22 @@ patch_stride = 1                 # Stride for patch extraction (1 = overlapping,
 val_ratio = 0.2                  # 20% of patches used for validation
 
 # --- Model Architecture ---
-# Channels for each convolutional layer (each layer reduces spatial size by 2x)
-conv_channels = [32, 64, 128, 256, 512, 512, 1024, 1024]
-# Features for linear layers before the latent bottleneck
-# The last value (64) is the Latent Dimension.
-linear_features = [512, 128, 64]
+
+# Encoder
+# For each residual block, specify channels in/out, inner channels, and spatial reduction scale AFTER the block.
+enc_channels = [64, 128, 256, 512, 1024]
+enc_inner_channels = [32, 64, 128, 256, 512]
+enc_scales = [2, 2, 2, 2, 2]     # Spatial reduction (e.g. 2 means half width/height)
+enc_linears = [512, 256]         # MLP layers before embedding
+
+# Decoder
+# For each residual block, specify channels in/out, inner channels, and spatial expansion scale BEFORE the block.
+dec_channels = [1024, 512, 256, 128, 64]
+dec_inner_channels = [512, 256, 128, 64, 32]
+dec_scales = [2, 2, 2, 2, 2]     # Spatial expansion (e.g. 2 means double width/height)
+dec_linears = [256, 512]         # MLP layers after embedding
+
+latent_dim = 128                 # The final embedding dimension
 
 # --- Training Hyperparameters ---
 num_epochs = 100

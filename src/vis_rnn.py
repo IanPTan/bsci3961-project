@@ -90,7 +90,18 @@ def main():
         with open(vae_config_path, "rb") as f:
             vae_config = tomllib.load(f)
     else:
-        vae_config = {"conv_channels": [32, 64, 128, 256, 512, 512, 1024, 1024], "linear_features": [512, 128, 64]}
+        vae_config = {
+            "enc_channels": [64, 128, 256, 512, 1024],
+            "enc_inner_channels": [32, 64, 128, 256, 512],
+            "enc_scales": [2, 2, 2, 2, 2],
+            "enc_linears": [512, 256],
+            "dec_channels": [1024, 512, 256, 128, 64],
+            "dec_inner_channels": [512, 256, 128, 64, 32],
+            "dec_scales": [2, 2, 2, 2, 2],
+            "dec_linears": [256, 512],
+            "latent_dim": 128,
+            "patch_size": 64
+        }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     val_h5_path = exp_dir / "val.h5"
@@ -108,7 +119,18 @@ def main():
 
     out_patches = torch.stack([dataset[i][2] for i in args.indices]).to(device)
 
-    vae = VAE(conv_channels=vae_config["conv_channels"], linear_features=vae_config["linear_features"]).to(device)
+    vae = VAE(
+        enc_channels=vae_config["enc_channels"],
+        enc_inner_channels=vae_config["enc_inner_channels"],
+        enc_scales=vae_config["enc_scales"],
+        enc_linears=vae_config["enc_linears"],
+        dec_channels=vae_config["dec_channels"],
+        dec_inner_channels=vae_config["dec_inner_channels"],
+        dec_scales=vae_config["dec_scales"],
+        dec_linears=vae_config["dec_linears"],
+        latent_dim=vae_config["latent_dim"],
+        image_size=vae_config.get("patch_size", 64)
+    ).to(device)
     vae_weights_path = vae_dir / f"{vae_dir.name}.pt"
     if not vae_weights_path.exists(): vae_weights_path = vae_dir / "vae.pt"
     if not vae_weights_path.exists(): vae_weights_path = vae_dir / "checkpoint.pt"
