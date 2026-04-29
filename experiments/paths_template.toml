@@ -1,0 +1,14 @@
+# Paths Dataset Template Configuration
+# This file contains the parameters for generating a random-walk path dataset.
+
+vae_dir = "experiments/vae_1"   # Which VAE experiment to use for encoding
+num_moves = 128                 # Length of each random walk
+patch_size = 64                 # Spatial size of patches to extract
+patch_stride = 1                # Stride for extraction
+move_max = 5                    # Max pixels to move per step
+rng_seed = 42                   # Seed for reproducibility
+
+[split_sizes]
+  train = 10000
+  test = 2500
+  val = 1000

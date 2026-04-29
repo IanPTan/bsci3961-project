@@ -1,0 +1,34 @@
+# RNN Experiment Template Configuration
+# This file contains the default hyperparameters for an RNN training run.
+# To use a custom config, create a new experiment folder (e.g., experiments/rnn_2/)
+# and copy this file into it as 'config.toml'.
+
+# --- Data Settings ---
+data_path = "experiments/paths_1/vae_paths.h5"
+mask_prob = 0.5                  # Probability of masking a patch (0.0 = disabled)
+mask_start_idx = 4               # Number of initial patches to never mask
+vae_embedding_size = 64          # The size of the VAE latent space (input patch dim)
+
+# --- Model Architecture ---
+hidden_dim = 4096
+hidden_loops = 7
+k = 0
+
+# --- Training Hyperparameters ---
+num_epochs = 200
+learning_rate = 0.0001           # 1e-4
+batch_size = 32
+weight_decay = 0.001             # 1e-3
+adamw_betas = [0.9, 0.999]
+
+# --- LR Schedule ---
+warmup_proportion = 0.1          # Proportion of total steps to use for warmup
+
+# --- OrthoGrad Hyperparameters ---
+use_orthograd = false
+orthograd_eps = 1e-5
+
+# --- Reproducibility & Performance ---
+rng_seed = 42
+num_workers = 4
+pin_memory = true

@@ -1,0 +1,7 @@
+# Patches Dataset Template Configuration
+# This file contains the parameters for generating a static patch dataset.
+
+vae_dir = "experiments/vae_1"   # Which VAE experiment to use for encoding
+patch_size = 1024               # Spatial size (1024 extracts entire image)
+patch_stride = 1
+rng_seed = 42

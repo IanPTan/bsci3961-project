@@ -8,60 +8,96 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
+import argparse
+import tomllib
+from pathlib import Path
 
 from dataset import Patcher
 
-# -------------------------
-# Config
-# -------------------------
-HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 3
+def get_latest_exp_dir(prefix="rnn_"):
+    exp_root = Path("experiments")
+    if not exp_root.exists():
+        return None
+        
+    max_num = 0
+    latest_dir = None
+    for d in exp_root.iterdir():
+        if d.is_dir() and d.name.startswith(prefix):
+            try:
+                num = int(d.name.split("_")[1])
+                if num > max_num:
+                    max_num = num
+                    latest_dir = d
+            except ValueError:
+                pass
+    return latest_dir
 
-VAL_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
-PATHS_H5 = "vae_paths.h5"
-IMAGE_PATH = "frieren.png"
-PATCH_SIZE = 64
-PATCH_STRIDE = 1
-
-def get_grid_dims():
-    if not os.path.exists(IMAGE_PATH):
-        print(f"Warning: {IMAGE_PATH} not found, falling back to 961x961")
+def get_grid_dims(image_path, patch_size, patch_stride):
+    if not os.path.exists(image_path):
+        print(f"Warning: {image_path} not found, falling back to 961x961")
         return 961, 961
     
-    img = transforms.ToTensor()(transforms.Resize(1024)(Image.open(IMAGE_PATH).convert("RGB")))
-    patcher = Patcher(img, PATCH_SIZE, PATCH_STRIDE)
+    img = transforms.ToTensor()(transforms.Resize(1024)(Image.open(image_path).convert("RGB")))
+    patcher = Patcher(img, patch_size, patch_stride)
     n_h, n_w = patcher.shape
-    print(f"Detected grid dimensions: {n_w}x{n_h} from {IMAGE_PATH}")
+    print(f"Detected grid dimensions: {n_w}x{n_h} from {image_path}")
     return n_h, n_w
 
-GRID_H, GRID_W = get_grid_dims()
-
-
 def create_heatmap():
-    if not os.path.exists(VAL_H5):
-        print(f"Error: {VAL_H5} not found. Run eval_rnn.py first.")
+    parser = argparse.ArgumentParser(description="Generate MSE heatmap for RNN predictions")
+    parser.add_argument("--exp-dir", type=str, help="Path to experiment directory")
+    args = parser.parse_args()
+    
+    if args.exp_dir:
+        exp_dir = Path(args.exp_dir)
+    else:
+        exp_dir = get_latest_exp_dir("rnn_")
+        if not exp_dir:
+            print("Error: No RNN experiment found in experiments/")
+            return
+            
+    print(f"Using experiment directory: {exp_dir}")
+    
+    config_path = exp_dir / "config.toml"
+    if not config_path.exists():
+        print(f"Error: {config_path} not found.")
+        return
+        
+    with open(config_path, "rb") as f:
+        config = tomllib.load(f)
+        
+    val_h5_path = exp_dir / "val.h5"
+    paths_h5_path = Path(config["data_path"])
+    image_path = config.get("image_path", "data/frieren.png")
+    patch_size = config.get("patch_size", 64)
+    patch_stride = config.get("patch_stride", 1)
+    hidden_dim = config["hidden_dim"]
+    hidden_loops = config["hidden_loops"]
+
+    if not val_h5_path.exists():
+        print(f"Error: {val_h5_path} not found. Run eval_rnn.py first.")
         return
 
-    print(f"Loading data from {VAL_H5} and {PATHS_H5}...")
+    grid_h, grid_w = get_grid_dims(image_path, patch_size, patch_stride)
+
+    print(f"Loading data from {val_h5_path} and {paths_h5_path}...")
     
-    with h5py.File(VAL_H5, "r") as f_val, h5py.File(PATHS_H5, "r") as f_paths:
+    with h5py.File(val_h5_path, "r") as f_val, h5py.File(paths_h5_path, "r") as f_paths:
         # y: (num_samples, seq_len, output_dim)
         y_pred = f_val["y"][:]
         
         # Ground truth patches from the 'val' group in vae_paths.h5
-        # patches: (num_samples, seq_len_patches, enc_dim)
-        # eval_rnn.py saves out_patches which are patches[1:]
+        if "val" not in f_paths:
+            print(f"Error: 'val' group not found in {paths_h5_path}.")
+            return
+            
         gt_patches = f_paths["val"]["patches"][:, 1:] 
-        
-        # Coords for these patches
-        # coords: (num_samples, seq_len_patches, 2)
         coords = f_paths["val"]["coords"][:, 1:]
 
         num_samples, seq_len, _ = y_pred.shape
 
         print(f"Processing {num_samples} samples...")
         
-        # Flatten everything to get (N_total, 2) coords and (N_total,) mses
         y_pred_flat = y_pred.reshape(-1, y_pred.shape[-1])
         gt_patches_flat = gt_patches.reshape(-1, gt_patches.shape[-1])
         coords_flat = coords.reshape(-1, 2)
@@ -85,19 +121,12 @@ def create_heatmap():
     # Interpolate Heatmap
     # -------------------------
     print("Interpolating heatmap...")
-    
-    # Grid coordinates (y, x)
-    grid_y, grid_x = np.mgrid[0:GRID_H, 0:GRID_W]
-    
-    # coords_flat is (y, x)
+    grid_y, grid_x = np.mgrid[0:grid_h, 0:grid_w]
     points = coords_flat
     values = mses
 
-    # Interpolate
-    # 'linear' or 'cubic' for smoothness
     heatmap = griddata(points, values, (grid_y, grid_x), method='linear')
     
-    # Fill nans (areas not covered by any interpolation triangle) with the nearest value or 0
     if np.isnan(heatmap).any():
         heatmap_nearest = griddata(points, values, (grid_y, grid_x), method='nearest')
         heatmap[np.isnan(heatmap)] = heatmap_nearest[np.isnan(heatmap)]
@@ -105,16 +134,15 @@ def create_heatmap():
     # -------------------------
     # Plot
     # -------------------------
-    os.makedirs("figs", exist_ok=True)
+    figs_dir = exp_dir / "figs"
+    figs_dir.mkdir(exist_ok=True)
     
     plt.figure(figsize=(10, 8))
-    plt.title(f"RNN Prediction MSE Heatmap ({HIDDEN_DIM}_{HIDDEN_LOOPS})")
+    plt.title(f"RNN Prediction MSE Heatmap ({exp_dir.name})")
     
-    # Use log scale for better visualization if the range is large
     im = plt.imshow(heatmap, cmap='inferno', origin='upper')
     plt.colorbar(im, label='MSE Loss')
     
-    # Add stats to the plot
     stats_text = (f"Min MSE: {min_mse:.6f}\n"
                   f"Max MSE: {max_mse:.6f}\n"
                   f"Mean MSE: {mean_mse:.6f}\n"
@@ -125,7 +153,7 @@ def create_heatmap():
     plt.xlabel("X (Patcher Column)")
     plt.ylabel("Y (Patcher Row)")
     
-    save_path = "figs/mse_heatmap.png"
+    save_path = figs_dir / "mse_heatmap.png"
     plt.savefig(save_path, bbox_inches='tight', dpi=150)
     plt.close()
     

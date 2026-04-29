@@ -1,3 +1,6 @@
+import argparse
+import tomllib
+from pathlib import Path
 import h5py
 import torch
 import torch.nn as nn
@@ -7,29 +10,23 @@ from tqdm import tqdm
 from rnn import RNN
 from dataset import VAEPathDataset
 
-
-# -------------------------
-# Config
-# -------------------------
-PATHS_H5 = "vae_paths.h5"
-
-BATCH_SIZE = 32
-
-# must match the trained model
-HIDDEN_DIM = 2048
-HIDDEN_LOOPS = 9
-K = 0
-
-# Masking Hyperparameters
-MASK_PROB = 0
-MASK_START_IDX = 4
-
-RNN_WEIGHTS = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_rnn.pt"
-OUTPUT_H5 = f"{HIDDEN_DIM}_{HIDDEN_LOOPS}_val.h5"
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
+def get_latest_exp_dir(prefix="rnn_"):
+    exp_root = Path("experiments")
+    if not exp_root.exists():
+        return None
+        
+    max_num = 0
+    latest_dir = None
+    for d in exp_root.iterdir():
+        if d.is_dir() and d.name.startswith(prefix):
+            try:
+                num = int(d.name.split("_")[1])
+                if num > max_num:
+                    max_num = num
+                    latest_dir = d
+            except ValueError:
+                pass
+    return latest_dir
 
 @torch.no_grad()
 def evaluate_and_save(model, loader, criterion, device, output_h5_path):
@@ -108,16 +105,40 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
 
     return total_loss / len(loader)
 
-
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate RNN and save hidden states")
+    parser.add_argument("--exp-dir", type=str, help="Path to experiment directory")
+    args = parser.parse_args()
+    
+    if args.exp_dir:
+        exp_dir = Path(args.exp_dir)
+    else:
+        exp_dir = get_latest_exp_dir("rnn_")
+        if not exp_dir:
+            print("Error: No RNN experiment found in experiments/")
+            return
+            
+    print(f"Using experiment directory: {exp_dir}")
+    
+    config_path = exp_dir / "config.toml"
+    if not config_path.exists():
+        print(f"Error: {config_path} not found.")
+        return
+        
+    with open(config_path, "rb") as f:
+        config = tomllib.load(f)
+        
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
     # -------------------------
     # Load validation dataset
     # -------------------------
     val_dataset = VAEPathDataset(
-        PATHS_H5, 
+        config["data_path"], 
         split="val",
-        mask_prob=MASK_PROB,
-        mask_start_idx=MASK_START_IDX
+        mask_prob=0, # No masking for evaluation usually
+        mask_start_idx=config["mask_start_idx"]
     )
 
     sample_moves, sample_in_patches, sample_out_patches, _, _ = val_dataset[0]
@@ -135,24 +156,38 @@ if __name__ == "__main__":
     print(f"Output dim:      {output_dim}")
     print(f"Val samples:     {len(val_dataset)}")
 
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=False)
 
     # -------------------------
     # Load model
     # -------------------------
     model = RNN(
         input_dim=input_dim,
-        hidden_dim=HIDDEN_DIM,
+        hidden_dim=config["hidden_dim"],
         output_dim=output_dim,
-        hidden_loops=HIDDEN_LOOPS,
-        k=K,
+        hidden_loops=config["hidden_loops"],
+        k=config["k"],
     ).to(device)
 
-    model.load_state_dict(torch.load(RNN_WEIGHTS, map_location=device))
+    rnn_weights_path = exp_dir / f"{exp_dir.name}.pt"
+    if not rnn_weights_path.exists():
+        # Try checkpoint.pt if experiment-named weights don't exist
+        rnn_weights_path = exp_dir / "checkpoint.pt"
+        if not rnn_weights_path.exists():
+            print(f"Error: No weights found in {exp_dir}")
+            return
+        else:
+            print(f"Loading weights from checkpoint: {rnn_weights_path}")
+            checkpoint = torch.load(rnn_weights_path, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        print(f"Loading best weights: {rnn_weights_path}")
+        model.load_state_dict(torch.load(rnn_weights_path, map_location=device))
+        
     model.eval()
-    print(f"Loaded model from {RNN_WEIGHTS}")
 
     criterion = nn.MSELoss()
+    output_h5_path = exp_dir / "val.h5"
 
     # -------------------------
     # Run val pass and save outputs
@@ -162,8 +197,11 @@ if __name__ == "__main__":
         loader=val_loader,
         criterion=criterion,
         device=device,
-        output_h5_path=OUTPUT_H5,
+        output_h5_path=output_h5_path,
     )
 
     print(f"Validation loss: {val_loss:.6f}")
-    print(f"Saved val predictions and hidden states to {OUTPUT_H5}")
+    print(f"Saved val predictions and hidden states to {output_h5_path}")
+
+if __name__ == "__main__":
+    main()

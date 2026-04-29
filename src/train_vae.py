@@ -268,48 +268,6 @@ def main():
             print(f"--> Validation loss improved. Saved {vae_pt_name}")
 
     print("VAE training complete.")
-    
-    # Generate final plots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
-    ax1.plot(train_losses, label='Train Loss')
-    ax1.plot(val_losses, label='Validation Loss')
-    ax1.set_title('Training and Validation Loss')
-    ax1.set_xlabel('Epochs')
-    ax1.set_ylabel('Loss')
-    ax1.legend()
-    
-    ax2.plot(lrs, color='orange')
-    ax2.set_title('Learning Rate Schedule')
-    ax2.set_xlabel('Epochs')
-    ax2.set_ylabel('Learning Rate')
-    
-    plt.tight_layout()
-    plt.savefig(figs_dir / "vae_loss.png")
-    plt.close(fig)
-    
-    # Generate comparison images
-    vae_model.eval()
-    # Get a batch from val_loader
-    val_iter = iter(val_loader)
-    images, _ = next(val_iter)
-    images = images.to(device)
-    
-    # Use the new helper for clean 0-1 outputs
-    recon_images = vae_model.reconstruct(images)
-        
-    for i in range(min(len(images), 5)):
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-        axes[0].imshow(images[i].detach().cpu().permute(1, 2, 0).clamp(0, 1))
-        axes[0].set_title("Original")
-        axes[0].axis('off')
-        
-        # Already pixels now
-        axes[1].imshow(recon_images[i].detach().cpu().permute(1, 2, 0).clamp(0, 1))
-        axes[1].set_title("Reconstruction")
-        axes[1].axis('off')
-        
-        plt.savefig(figs_dir / f"vae_comp_{i}.png")
-        plt.close(fig)
 
 if __name__ == "__main__":
     main()
