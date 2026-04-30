@@ -207,8 +207,8 @@ def main():
             loss.backward()
             optimizer.step()
             
-            total_train_loss += loss.item()
-            train_pbar.set_postfix(L=f"{loss.item() / len(images):.4f}")
+            total_train_loss += loss.item() * len(images)
+            train_pbar.set_postfix(L=f"{loss.item():.4f}")
             
         avg_train_loss = total_train_loss / len(train_loader.dataset)
         
@@ -221,7 +221,7 @@ def main():
                 images = images.to(device)
                 recon_images, mu, logvar = vae_model(images)
                 loss = vae_model.vae_loss(recon_images, images, mu, logvar)
-                total_val_loss += loss.item()
+                total_val_loss += loss.item() * len(images)
                 
         avg_val_loss = total_val_loss / len(val_loader.dataset)
         

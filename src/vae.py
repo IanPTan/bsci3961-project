@@ -209,8 +209,13 @@ class VAE(nn.Module):
         if recon_x.shape != x.shape:
              recon_x = F.interpolate(recon_x, size=x.shape[2:], mode='bilinear', align_corners=False)
 
-        BCE = F.binary_cross_entropy_with_logits(recon_x, x, reduction='sum')
+        # Average BCE per pixel/channel element
+        BCE = F.binary_cross_entropy_with_logits(recon_x, x, reduction='mean')
+        
+        # Average KLD per pixel/channel element to maintain balance with BCE
         KLD = -0.5 * pt.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        KLD /= x.numel()
+        
         return BCE + KLD
 
 if __name__ == "__main__":
