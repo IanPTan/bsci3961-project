@@ -17,33 +17,12 @@ import random
 from vae import VAE
 from dataset import PatchDataset
 
-DEFAULT_CONFIG = {
-    "image_path": "data/frieren.png",
-    "image_size": 1024,
-    "num_epochs": 100,
-    "learning_rate": 1e-3,
-    "batch_size": 16,
-    "weight_decay": 0.01,
-    "adamw_betas": [0.9, 0.999],
-    "enc_channels": [64, 128, 256, 512, 1024],
-    "enc_inner_channels": [32, 64, 128, 256, 512],
-    "enc_scales": [2, 2, 2, 2, 2],
-    "enc_linears": [512, 256],
-    "dec_channels": [1024, 512, 256, 128, 64],
-    "dec_inner_channels": [512, 256, 128, 64, 32],
-    "dec_scales": [2, 2, 2, 2, 2],
-    "dec_linears": [256, 512],
-    "latent_dim": 128,
-    "better_by": 1.0,
-    "patch_size": 64,
-    "patch_stride": 1,
-    "val_ratio": 0.2,
-    "scheduler_patience": 10,
-    "scheduler_factor": 0.5,
-    "rng_seed": 42,
-    "num_workers": 4,
-    "pin_memory": True
-}
+def load_defaults(path="experiments/vae_defaults.toml"):
+    if not os.path.exists(path):
+        print(f"Error: Default config not found at {path}")
+        exit(1)
+    with open(path, "rb") as f:
+        return tomllib.load(f)
 
 def seed_everything(seed):
     random.seed(seed)
@@ -101,7 +80,7 @@ def main():
     print(f"Using experiment directory: {exp_dir}")
     
     config_path = exp_dir / "config.toml"
-    config = DEFAULT_CONFIG.copy()
+    config = load_defaults()
     if config_path.exists():
         with open(config_path, "rb") as f:
             loaded_config = tomllib.load(f)

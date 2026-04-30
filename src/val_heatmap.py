@@ -43,16 +43,24 @@ def get_grid_dims(image_path, patch_size, patch_stride):
     print(f"Detected grid dimensions: {n_w}x{n_h} from {image_path}")
     return n_w, n_h
 
+def load_defaults(path="experiments/paths_defaults.toml"):
+    if not os.path.exists(path):
+        print(f"Error: Default config not found at {path}")
+        exit(1)
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
 def create_val_heatmap():
     parser = argparse.ArgumentParser(description="Generate validation path coverage density heatmap")
     parser.add_argument("--exp-dir", type=str, help="Path to experiment directory (optional, for output location)")
     args = parser.parse_args()
     
     # Defaults
-    paths_h5_path = Path("data/vae_paths.h5")
+    defaults = load_defaults()
+    paths_h5_path = Path(defaults.get("data_path", "data/vae_paths.h5"))
     image_path = "data/frieren.png"
-    patch_size = 64
-    patch_stride = 1
+    patch_size = defaults.get("patch_size", 64)
+    patch_stride = defaults.get("patch_stride", 1)
     
     if args.exp_dir:
         exp_dir = Path(args.exp_dir)

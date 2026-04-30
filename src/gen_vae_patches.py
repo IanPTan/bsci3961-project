@@ -13,12 +13,12 @@ import random
 from dataset import PatchDataset
 from vae import VAE
 
-DEFAULT_CONFIG = {
-    "vae_dir": "experiments/vae_1",
-    "patch_size": 1024, # Special case for this script based on old code
-    "patch_stride": 1,
-    "rng_seed": 42
-}
+def load_defaults(path="experiments/patches_defaults.toml"):
+    if not os.path.exists(path):
+        print(f"Error: Default config not found at {path}")
+        exit(1)
+    with open(path, "rb") as f:
+        return tomllib.load(f)
 
 def get_latest_exp_dir(prefix="vae_"):
     exp_root = Path("experiments")
@@ -83,8 +83,9 @@ def main():
     exp_dir = get_exp_dir(args.exp_dir, "patches_")
     print(f"Using experiment directory: {exp_dir}")
     
+    defaults = load_defaults()
     config_path = exp_dir / "config.toml"
-    config = DEFAULT_CONFIG.copy()
+    config = defaults.copy()
     if config_path.exists():
         with open(config_path, "rb") as f:
             config.update(tomllib.load(f))

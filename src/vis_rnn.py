@@ -33,6 +33,13 @@ def get_latest_exp_dir(prefix="rnn_"):
                 pass
     return latest_dir
 
+def load_defaults(path):
+    if not os.path.exists(path):
+        print(f"Error: Default config not found at {path}")
+        exit(1)
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
 def decode_latents(vae, z):
     original_shape = z.shape[:-1]
     latent_dim = z.shape[-1]
@@ -90,18 +97,8 @@ def main():
         with open(vae_config_path, "rb") as f:
             vae_config = tomllib.load(f)
     else:
-        vae_config = {
-            "enc_channels": [64, 128, 256, 512, 1024],
-            "enc_inner_channels": [32, 64, 128, 256, 512],
-            "enc_scales": [2, 2, 2, 2, 2],
-            "enc_linears": [512, 256],
-            "dec_channels": [1024, 512, 256, 128, 64],
-            "dec_inner_channels": [512, 256, 128, 64, 32],
-            "dec_scales": [2, 2, 2, 2, 2],
-            "dec_linears": [256, 512],
-            "latent_dim": 128,
-            "patch_size": 64
-        }
+        print(f"Warning: No config.toml found in {vae_dir}. Using defaults from experiments/vae_defaults.toml.")
+        vae_config = load_defaults("experiments/vae_defaults.toml")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     val_h5_path = exp_dir / "val.h5"
@@ -131,6 +128,7 @@ def main():
         latent_dim=vae_config["latent_dim"],
         image_size=vae_config.get("patch_size", 64)
     ).to(device)
+    
     vae_weights_path = vae_dir / f"{vae_dir.name}.pt"
     if not vae_weights_path.exists(): vae_weights_path = vae_dir / "vae.pt"
     if not vae_weights_path.exists(): vae_weights_path = vae_dir / "checkpoint.pt"
@@ -147,7 +145,6 @@ def main():
     figs_dir = exp_dir / "figs" / "paths"
     figs_dir.mkdir(parents=True, exist_ok=True)
     
-    # Loss Plots
     for i, seq_idx in enumerate(args.indices):
         plt.figure(figsize=(8, 4))
         plt.plot(all_mses_batch[i])
@@ -155,7 +152,6 @@ def main():
         plt.savefig(figs_dir / f"mse_{seq_idx:03d}.png")
         plt.close()
 
-    # Videos
     for i, seq_idx in enumerate(args.indices):
         true_latents, pred_latents = out_patches[i], pred_out_patches[i]
         true_imgs, pred_imgs = true_imgs_batch[i], pred_imgs_batch[i]

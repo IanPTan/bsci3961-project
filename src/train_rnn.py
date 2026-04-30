@@ -16,26 +16,12 @@ from pytorch_optimizer import create_optimizer
 from rnn import RNN
 from dataset import VAEPathDataset
 
-DEFAULT_CONFIG = {
-    "data_path": "data/vae_paths.h5",
-    "mask_prob": 0.5,
-    "mask_start_idx": 4,
-    "vae_embedding_size": 64,
-    "hidden_dim": 4096,
-    "hidden_loops": 7,
-    "k": 0,
-    "num_epochs": 200,
-    "learning_rate": 1e-4,
-    "batch_size": 32,
-    "weight_decay": 1e-3,
-    "adamw_betas": [0.9, 0.999],
-    "warmup_proportion": 0.1,
-    "use_orthograd": False,
-    "orthograd_eps": 1e-5,
-    "rng_seed": 42,
-    "num_workers": 4,
-    "pin_memory": True
-}
+def load_defaults(path="experiments/rnn_defaults.toml"):
+    if not os.path.exists(path):
+        print(f"Error: Default config not found at {path}")
+        exit(1)
+    with open(path, "rb") as f:
+        return tomllib.load(f)
 
 def seed_everything(seed):
     random.seed(seed)
@@ -144,8 +130,9 @@ def main():
     exp_dir = get_exp_dir(args.exp_dir)
     print(f"Using experiment directory: {exp_dir}")
     
+    defaults = load_defaults()
     config_path = exp_dir / "config.toml"
-    config = DEFAULT_CONFIG.copy()
+    config = defaults.copy()
     if config_path.exists():
         with open(config_path, "rb") as f:
             loaded_config = tomllib.load(f)

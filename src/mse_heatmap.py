@@ -43,6 +43,13 @@ def get_grid_dims(image_path, patch_size, patch_stride):
     print(f"Detected grid dimensions: {n_w}x{n_h} from {image_path}")
     return n_h, n_w
 
+def load_defaults(path="experiments/paths_defaults.toml"):
+    if not os.path.exists(path):
+        print(f"Error: Default config not found at {path}")
+        exit(1)
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
 def create_heatmap():
     parser = argparse.ArgumentParser(description="Generate MSE heatmap for RNN predictions")
     parser.add_argument("--exp-dir", type=str, help="Path to experiment directory")
@@ -67,7 +74,9 @@ def create_heatmap():
         config = tomllib.load(f)
         
     val_h5_path = exp_dir / "val.h5"
-    paths_h5_path = Path(config["data_path"])
+    
+    defaults = load_defaults()
+    paths_h5_path = Path(config.get("data_path", defaults.get("data_path", "data/vae_paths.h5")))
     image_path = config.get("image_path", "data/frieren.png")
     patch_size = config.get("patch_size", 64)
     patch_stride = config.get("patch_stride", 1)
