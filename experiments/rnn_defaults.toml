@@ -22,12 +22,6 @@ val_batch_size = 64              # Separate batch size for validation
 weight_decay = 0.001             # 1e-3
 adamw_betas = [0.9, 0.999]
 
-# --- Visualization Settings ---
-[vis]
-indices = [1, 2, 3, 4, 5]        # Sequence indices to visualize in vis_rnn.py
-fps = 2                          # Video frame rate
-size = 512                       # Output patch size for video
-
 # --- LR Schedule ---
 warmup_proportion = 0.1          # Proportion of total steps to use for warmup
 
@@ -39,3 +33,9 @@ orthograd_eps = 1e-5
 rng_seed = 42
 num_workers = 4
 pin_memory = true
+
+# --- Visualization Settings ---
+[vis]
+indices = [1, 2, 3, 4, 5]        # Sequence indices to visualize in vis_rnn.py
+fps = 2                          # Video frame rate
+size = 512                       # Output patch size for video

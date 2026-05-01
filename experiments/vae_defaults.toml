@@ -41,11 +41,11 @@ scheduler_patience = 10          # Number of epochs to wait without improvement 
 scheduler_factor = 0.5           # Multiply LR by this factor when patience is hit
 better_by = 0.0001                  # Minimum improvement in val loss to be considered "better"
 
-# --- Visualization Settings ---
-[vis]
-indices = [0, 1, 2, 3, 4, 10, 20] # Indices for comparison plots in vis_vae.py
-
 # --- Reproducibility & Performance ---
 rng_seed = 42                    # Fixed seed for dataset splits and weight init
 num_workers = 4                  # Number of CPU threads for data loading
 pin_memory = true                # Speeds up data transfer to GPU (if available)
+
+# --- Visualization Settings ---
+[vis]
+indices = [0, 1, 2, 3, 4, 10, 20] # Indices for comparison plots in vis_vae.py
