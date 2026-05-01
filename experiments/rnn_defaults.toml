@@ -18,8 +18,15 @@ k = 0
 num_epochs = 200
 learning_rate = 0.0001           # 1e-4
 batch_size = 32
+val_batch_size = 64              # Separate batch size for validation
 weight_decay = 0.001             # 1e-3
 adamw_betas = [0.9, 0.999]
+
+# --- Visualization Settings ---
+[vis]
+indices = [1, 2, 3, 4, 5]        # Sequence indices to visualize in vis_rnn.py
+fps = 2                          # Video frame rate
+size = 512                       # Output patch size for video
 
 # --- LR Schedule ---
 warmup_proportion = 0.1          # Proportion of total steps to use for warmup

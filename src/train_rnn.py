@@ -199,7 +199,7 @@ def main():
     )
     val_loader = DataLoader(
         test_dataset, 
-        batch_size=config["batch_size"], 
+        batch_size=config.get("val_batch_size", config["batch_size"]), 
         shuffle=False,
         num_workers=config["num_workers"],
         pin_memory=config["pin_memory"]

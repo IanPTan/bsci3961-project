@@ -92,6 +92,15 @@ def main():
     with open(exp_dir / "config.toml", "rb") as f:
         config = tomllib.load(f)
         
+    # Merge config vis params if args are default
+    vis_config = config.get("vis", {})
+    if args.indices == [1, 2, 3, 4, 5] and "indices" in vis_config:
+        args.indices = vis_config["indices"]
+    if args.fps == 2 and "fps" in vis_config:
+        args.fps = vis_config["fps"]
+    if args.size == 512 and "size" in vis_config:
+        args.size = vis_config["size"]
+    
     vae_config_path = vae_dir / "config.toml"
     if vae_config_path.exists():
         with open(vae_config_path, "rb") as f:

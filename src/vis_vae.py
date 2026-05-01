@@ -44,6 +44,11 @@ def main():
     with open(config_path, "rb") as f:
         config = tomllib.load(f)
         
+    # Merge config vis indices if args.indices is default
+    vis_config = config.get("vis", {})
+    if args.indices == [0, 1, 2, 3, 4] and "indices" in vis_config:
+        args.indices = vis_config["indices"]
+    
     figs_dir = exp_dir / "figs"
     figs_dir.mkdir(exist_ok=True)
     

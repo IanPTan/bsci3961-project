@@ -32,6 +32,7 @@ latent_dim = 64                 # The final embedding dimension
 num_epochs = 100
 learning_rate = 0.001
 batch_size = 16
+val_batch_size = 32              # Separate batch size for validation
 weight_decay = 0.01              # Regularization (AdamW)
 adamw_betas = [0.9, 0.999]       # Standard AdamW momentum parameters
 
@@ -39,6 +40,10 @@ adamw_betas = [0.9, 0.999]       # Standard AdamW momentum parameters
 scheduler_patience = 10          # Number of epochs to wait without improvement before dropping LR
 scheduler_factor = 0.5           # Multiply LR by this factor when patience is hit
 better_by = 0.0001                  # Minimum improvement in val loss to be considered "better"
+
+# --- Visualization Settings ---
+[vis]
+indices = [0, 1, 2, 3, 4, 10, 20] # Indices for comparison plots in vis_vae.py
 
 # --- Reproducibility & Performance ---
 rng_seed = 42                    # Fixed seed for dataset splits and weight init
