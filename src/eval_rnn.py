@@ -81,7 +81,7 @@ def evaluate_and_save(model, loader, criterion, device, output_h5_path):
 
             x = torch.cat([in_patches, moves], dim=-1)
 
-            y_pred, _, h_all = model(x) # 1: y, 2: h_seq (3D), 3: h_all (4D)
+            y_pred, _, h_all = model(x, return_all_h=True) # 1: y, 2: h_seq (3D), 3: h_all (4D)
             loss = criterion(y_pred, out_patches)
             total_loss += loss.item()
 

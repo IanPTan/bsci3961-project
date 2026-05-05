@@ -30,33 +30,35 @@ class RNN(nn.Module):
         else:
             self.act = lambda x: nn.functional.relu(x)
 
-    def forward(self, x, h=None):
+    def forward(self, x, h=None, return_all_h=False):
         B, T, F = x.shape
 
         if h is None:
             h = torch.zeros(B, self.hidden_dim, device=x.device, dtype=x.dtype)
 
         hs = []
-        h_all = []
+        # Pre-allocate h_all to avoid the memory spike of torch.stack
+        h_all = None
+        if return_all_h:
+            h_all = torch.empty(B, T, 1 + self.hidden_loops, self.hidden_dim, device=x.device, dtype=x.dtype)
+
         for t in range(T):
             x_t = x[:, t, :]
             
-            h_steps = []
             # Initial transition from input + previous state
             h = self.act(self.in_lin(x_t) + self.hid_lin(h))
-            h_steps.append(h)
+            if return_all_h:
+                h_all[:, t, 0] = h
 
             # Recurrent hidden loops (updates h in-place within the timestep)
             for i in range(self.hidden_loops):
                 h = self.act(self.hid_lin(h))
-                h_steps.append(h)
+                if return_all_h:
+                    h_all[:, t, i+1] = h
 
             hs.append(h)
-            h_all.append(torch.stack(h_steps, dim=1)) # (B, 1 + hidden_loops, hidden_dim)
 
         h_seq = torch.stack(hs, dim=1)          # (B, T, hidden_dim)
-        h_all = torch.stack(h_all, dim=1)        # (B, T, 1 + hidden_loops, hidden_dim)
-        
         y = self.out_lin(h_seq)
 
         return y, h_seq, h_all

@@ -54,7 +54,9 @@ def get_exp_dir(args_exp_dir, prefix="patches_"):
                 max_num = max(max_num, num)
             except ValueError:
                 pass
-    new_dir = exp_root / f"{prefix}{max_num + 1}"
+    
+    target_num = max(1, max_num)
+    new_dir = exp_root / f"{prefix}{target_num}"
     new_dir.mkdir(exist_ok=True)
     return new_dir
 

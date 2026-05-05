@@ -117,6 +117,35 @@ def main():
         print(f"Error: {val_h5_path} not found. Run eval_rnn.py first.")
         return
 
+    figs_dir = exp_dir / "figs"
+    figs_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Plot Global Losses
+    loss_path = exp_dir / "loss.h5"
+    if loss_path.exists():
+        with h5py.File(loss_path, "r") as f:
+            train_losses = f["train_losses"][:]
+            val_losses = f["val_losses"][:]
+            lrs = f["lrs"][:] if "lrs" in f else None
+            
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
+        ax1.plot(train_losses, label='Train Loss')
+        ax1.plot(val_losses, label='Validation Loss')
+        ax1.set_title('RNN Training and Validation Loss')
+        ax1.set_ylabel('Loss (MSE)')
+        ax1.legend()
+        
+        if lrs is not None:
+            ax2.plot(lrs, color='orange')
+            ax2.set_title('Learning Rate Schedule')
+            ax2.set_xlabel('Epochs')
+            ax2.set_ylabel('Learning Rate')
+        
+        plt.tight_layout()
+        plt.savefig(figs_dir / "rnn_loss_global.png")
+        plt.close()
+        print(f"Saved global loss plot to {figs_dir / 'rnn_loss_global.png'}")
+
     dataset = VAEPathDataset(paths_h5_path, split="val", mask_prob=0, mask_start_idx=config["mask_start_idx"])
 
     with h5py.File(val_h5_path, "r") as f:
