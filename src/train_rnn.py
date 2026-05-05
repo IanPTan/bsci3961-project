@@ -326,29 +326,6 @@ def main():
             
     print("Training complete.")
     print(f"Best validation loss: {best_val_loss:.6f}")
-    
-    # Generate final plots
-    try:
-        import matplotlib.pyplot as plt
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
-        ax1.plot(train_losses, label='Train Loss')
-        ax1.plot(val_losses, label='Validation Loss')
-        ax1.set_title('Training and Validation Loss')
-        ax1.set_xlabel('Epochs')
-        ax1.set_ylabel('Loss (MSE)')
-        ax1.legend()
-        
-        ax2.plot(lrs, color='orange')
-        ax2.set_title('Learning Rate Schedule')
-        ax2.set_xlabel('Epochs')
-        ax2.set_ylabel('Learning Rate')
-        
-        plt.tight_layout()
-        plt.savefig(figs_dir / "rnn_loss.png")
-        plt.close(fig)
-        print(f"Saved loss plots to {figs_dir / 'rnn_loss.png'}")
-    except Exception as e:
-        print(f"Could not generate loss plot: {e}")
 
 if __name__ == "__main__":
     main()
