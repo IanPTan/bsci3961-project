@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--indices", type=int, nargs="+", default=[1, 2, 3, 4, 5], help="Sequence indices to visualize")
     parser.add_argument("--fps", type=int, default=2, help="Video frame rate")
     parser.add_argument("--size", type=int, default=512, help="Output patch size")
+    parser.add_argument("--no-eval", action="store_true", help="Only plot global losses, skip sequence visualization (avoids requiring val.h5)")
     args = parser.parse_args()
     
     if args.exp_dir:
@@ -113,8 +114,8 @@ def main():
     val_h5_path = exp_dir / "val.h5"
     paths_h5_path = Path(config["data_path"])
     
-    if not val_h5_path.exists():
-        print(f"Error: {val_h5_path} not found. Run eval_rnn.py first.")
+    if not args.no_eval and not val_h5_path.exists():
+        print(f"Error: {val_h5_path} not found. Run eval_rnn.py first or use --no-eval.")
         return
 
     figs_dir = exp_dir / "figs"
@@ -149,6 +150,10 @@ def main():
             print(f"Saved loss plots to {figs_dir / 'rnn_loss.png'}")
         except Exception as e:
             print(f"Could not generate loss plot: {e}")
+
+    if args.no_eval:
+        print("Sequence visualization skipped (--no-eval).")
+        return
 
     dataset = VAEPathDataset(paths_h5_path, split="val", mask_prob=0, mask_start_idx=config["mask_start_idx"])
 
